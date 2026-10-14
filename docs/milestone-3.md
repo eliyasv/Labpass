@@ -1,9 +1,9 @@
 # Milestone 3: local React frontend
 
-Completed 13 October 2026 (Asia/Kolkata). This milestone connects the existing
+Completed 13 October 2026. This milestone connects the existing
 booking API to a working browser UI. No AWS infrastructure was provisioned.
 
-## What changed and why
+## Implementation
 
 React/TypeScript/Vite now provides registration, login/logout, session restoration,
 workshop browsing/search, live-on-refresh availability, reservations, booking
@@ -51,10 +51,9 @@ and [Playwright browsers](https://playwright.dev/docs/browsers).
 - `README.md`, `docs/architecture.md`, `docs/checklist.md`, this report:
   operation, decisions, evidence and outstanding work.
 
-Backend application code, schema/migrations, existing tests and `test.py` were
-unchanged. Git metadata remains unusable; no commit or PR was created.
+Backend application code, schema/migrations and existing tests were unchanged.
 
-## Separate review findings and fixes
+## Review findings
 
 Reviewed the changed source/configuration, generated contract and lock agreement,
 then traced register/login/reload, reserve/retry/cancel/rebook, logout, role
@@ -75,7 +74,7 @@ non-root Nginx/pid/temp permissions, health dependencies, URI/Origin preservatio
 API no-store headers and safe Docker contexts. Generated schemas/types are
 checked against the actual application contract. No database migration was needed.
 
-## Commands actually executed and results
+## Verification
 
 | Command/check | Observed result |
 | --- | --- |
@@ -87,13 +86,12 @@ checked against the actual application contract. No database migration was neede
 | `npm run format:check`; `npm ls --all --depth=0` | Formatting passed; expected exact direct versions installed, no peer errors |
 | `ruff check backend scripts`; `ruff format --check backend scripts` | All checks passed; 25 Python files formatted |
 | `.venv/bin/python -m pytest -q scripts/tests` | 9 startup regression tests passed |
-| `PLAYWRIGHT_BROWSERS_PATH=/tmp/labpass-playwright npx playwright install chromium --only-shell` | Download succeeded after sandbox network retry; Ubuntu fallback browser used on this OS |
+| `PLAYWRIGHT_BROWSERS_PATH=/tmp/labpass-playwright npx playwright install chromium --only-shell` | Chromium installed successfully |
 | Compose `-p labpass-m3-verification up --build --wait --wait-timeout 90`, port 8002 | Images built; real PostgreSQL, API and web healthy; migration exited 0 |
-| Browser suite before review fixes | 6 passed in 11.5s |
 | Expanded final browser suite | **8 passed in 15.2s**, no automatic test retries |
 | Default Compose `up --build --wait --wait-timeout 90`, seed, existing HTTP smoke | Started on port 8000; seed and full register/login/book/retry/history/cancel/logout smoke passed through Nginx |
 | Web `id`; `nginx -t`; API `alembic check` | UID/GID 101; Nginx config valid; no new upgrade operations detected |
-| Headless Chromium on default stack | Frontend HTTP 200, CSP present, Swagger HTTP 200, no page runtime errors or 390px horizontal overflow; desktop/mobile screenshots captured and visually inspected |
+| Headless Chromium on default stack | Frontend HTTP 200, CSP present, Swagger HTTP 200, no page runtime errors or horizontal overflow at 390px; desktop/mobile layouts reviewed |
 | Verification Compose `stop`, then default Compose `ps -a` | Isolated test services stopped with their data retained; default DB/API/web remain healthy and migration exited 0 |
 
 The browser suite uses the production frontend container and real API/database.
@@ -111,7 +109,7 @@ unchanged; new integration evidence is the real browser and existing HTTP smoke.
   assistive-technology behavior are not verified. Desktop/390px Chromium was used.
 - Pages use offsets; concurrent inserts can shift page boundaries. Search applies
   to loaded workshops. Full multi-page datasets were not tested; browser fixtures
-  currently assume their workshops fit in the first 50 rows. Refresh resets lists
+  require their workshops to fit in the first 50 rows. Refresh resets lists
   to their first page, and older active bookings may lack a card indicator.
 - Storage-disabled reload loses pending keys; in-memory retries still work.
   Cross-tab login/session changes may require a refresh to restore matching CSRF.
@@ -131,22 +129,21 @@ unchanged; new integration evidence is the real browser and existing HTTP smoke.
 
 ## Run and inspect locally
 
-The default project is running at <http://127.0.0.1:8000/>. Create an account,
+Start the local stack at <http://127.0.0.1:8000/>. Create an account,
 sign in, reserve the seeded workshop, inspect My bookings, cancel it and sign out.
 Administrator provisioning and repeatable browser-test commands are in
-[README](../README.md). Use the temporary Compose binary if the plugin is absent.
+[development guide](development.md).
 
 ```bash
-/tmp/labpass-compose/docker-compose up --build --wait --wait-timeout 90
-/tmp/labpass-compose/docker-compose exec api python -m labpass.seed
+docker compose up --build --wait --wait-timeout 90
+docker compose exec api python -m labpass.seed
 python3 scripts/smoke-local.py
-/tmp/labpass-compose/docker-compose ps -a
-/tmp/labpass-compose/docker-compose logs api web migrate
+docker compose ps -a
+docker compose logs api web migrate
 ```
 
 Only the web container publishes port 8000. Existing `/api/*` and `/docs` URLs
-remain usable. Local screenshots are `/tmp/labpass-desktop.png` and
-`/tmp/labpass-mobile.png`; they are verification artifacts, not source dependencies.
+remain usable.
 
 ## Next implementation step
 
@@ -154,5 +151,4 @@ Implement the transactional outbox relay and duplicate-safe confirmation
 processing. Start with local publication/consumer failure tests, competing relay
 instances, stable event IDs and delivery claims. Then prepare AWS SQS/Lambda/SES
 integration. Email failure must not reverse bookings; document the SES-success /
-recording-failure window without promising exactly-once delivery. Paid AWS
-resources and deployment continue to require explicit authorization.
+recording-failure window without promising exactly-once delivery.

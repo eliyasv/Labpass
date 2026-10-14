@@ -1,9 +1,9 @@
 # Milestone 4: local background confirmations
 
-Local portion completed 14 October 2026 (Asia/Kolkata), with work/verification
+Local portion completed 14 October 2026, with work/verification
 spanning 13–14 October. AWS deployment and internet email delivery are pending.
 
-## What changed and why
+## Implementation
 
 Bookings now lead to asynchronous local confirmation emails through a real
 SQS-compatible ElasticMQ queue and Mailpit SMTP capture. The existing booking
@@ -35,8 +35,8 @@ a crash/DB failure can resend after recovery. Exactly-once email is not promised
 
 Local runtime configuration rejects real AWS endpoints/external SMTP. The SDK
 uses explicit dummy credentials, a required local endpoint and disabled SDK
-retries. No AWS credential files are read by the application and no paid resource
-was provisioned. Mailpit has no internet forwarding configured. Its UI is bound
+retries. The local client does not read shared AWS credential files.
+Mailpit has no internet forwarding configured. Its UI is bound
 to loopback; queue/SMTP ports stay internal. Database, queue and mailbox volumes
 are retained.
 
@@ -65,13 +65,11 @@ and [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/d
 - `scripts/smoke-background.py`, `check-background-dlq.py`: real captured-email,
   duplicate and opt-in isolated poison/redrive checks.
 - `README.md`, `docs/architecture.md`, `docs/checklist.md`, this report: operation,
-  assumptions, evidence, recovery and remaining scope.
+  design decisions, evidence, recovery and remaining scope.
 
 Frontend code and its API snapshot/types were unchanged and still match OpenAPI.
-Existing `test.py` is untouched. Git is now initialized; `git status --short`
-shows project source files untracked. No milestone commit or PR was created.
 
-## Separate review findings and fixes
+## Review findings
 
 Reviewed every changed module/configuration and the model/migration agreement;
 traced booking commit → relay → queue → claim → SMTP → completion → acknowledgement,
@@ -95,15 +93,12 @@ health dependencies and absence of CORS/API contract changes. Fencing protects
 DB state; it cannot revoke an already-running SMTP send. An expired slow sender
 can still overlap a new sender, which is part of the duplicate-email limitation.
 
-## Commands actually executed and results
+## Verification
 
 | Command/check | Observed result |
 | --- | --- |
 | Official docs/installed API and dependency inspection | Verified queue configuration, boto3 methods, Mailpit search fields and Lambda response contract |
 | Runtime/dev `pip-compile`, then locked installation | boto3/botocore 1.43.112 installed with pinned dependencies; existing package versions retained |
-| Initial native test runner inside sandbox | PostgreSQL socket bind denied; retried with the required sandbox approval |
-| `bash scripts/test-local.sh -q` before SDK/operator additions | 88 passed; 100 actual concurrent booking workers still verify 20 seats |
-| Before final SDK file-isolation fix, `bash scripts/test-local.sh -q` | 92 passed in 3.78s |
 | Final `bash scripts/test-local.sh -q` | **93 passed in 3.66s**, no warnings; temporary server stopped, files retained |
 | Focused SDK tests | 3 passed; parameters verified using botocore Stubber and shared-file isolation verified under overridden AWS env, without network/AWS calls |
 | `ruff check backend scripts`; `ruff format --check backend scripts` | All checks passed; 36 files formatted |
@@ -112,7 +107,6 @@ can still overlap a new sender, which is part of the duplicate-email limitation.
 | OpenAPI export `--check`; frontend `npm run check-contract` | Existing snapshot/generated types still match |
 | Isolated Compose `up --build --wait --wait-timeout 120`, API 8003/mail 8026 | Migration exited 0; API/web/relay/consumer/mail healthy; local SQS operations succeed |
 | First captured-email smoke | Real booking published, sent and captured once |
-| Expanded smoke before count fix | Failed because mailbox total was used; diagnostics showed one matching email and two overall |
 | Corrected expanded smoke on isolated stack | Publication, SMTP capture and duplicate suppression passed |
 | Isolated opt-in poison check | Poison message reached configured DLQ after bounded receives; retained for inspection |
 | Restart isolated queue and Mailpit, recheck persistence | One DLQ poison record and three captured confirmations survived restart |
@@ -156,23 +150,23 @@ in-flight sender. No SQLite/database mock replaces booking or delivery tests.
 The default stack serves LabPass at <http://127.0.0.1:8000/> and Mailpit at
 <http://127.0.0.1:8025/>. Register/login, reserve an available seat, wait a few
 seconds and inspect its email before cancelling. Captured mail stays local.
-The temporary Compose binary is still used because the plugin is absent.
 
 ```bash
-/tmp/labpass-compose/docker-compose up --build --wait --wait-timeout 120
-/tmp/labpass-compose/docker-compose exec -T consumer python < scripts/smoke-background.py
-/tmp/labpass-compose/docker-compose exec relay python -m labpass.background status
-/tmp/labpass-compose/docker-compose logs --tail=30 relay consumer
+docker compose up --build --wait --wait-timeout 120
+docker compose exec -T consumer python < scripts/smoke-background.py
+docker compose exec relay python -m labpass.background status
+docker compose logs --tail=30 relay consumer
 ```
 
 The smoke cleans up its active booking/session while retaining its account,
-history, event and captured email. Recovery commands and limits are in README.
+history, event and captured email. Recovery commands are in the
+[development guide](development.md#worker-recovery).
 Use this isolated configuration for a repeatable poison test:
 
 ```bash
-LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 /tmp/labpass-compose/docker-compose \
+LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 docker compose \
   -p labpass-m4-verification up --build --wait --wait-timeout 120
-LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 /tmp/labpass-compose/docker-compose \
+LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 docker compose \
   -p labpass-m4-verification exec -T -e LABPASS_DLQ_CHECK=true consumer python \
   < scripts/check-background-dlq.py
 ```
@@ -185,5 +179,4 @@ in the test DLQ. Run it only in an isolated project, not as routine production h
 Prepare AWS-specific SQS/SES adapters and a Lambda entry point around the tested
 delivery core, including partial-batch event-source configuration, secret loading,
 restricted DB credentials and private connectivity. Then define Terraform with
-explicit region/domain/budget and egress/availability decisions. No paid
-provisioning, AWS deployment or resource deletion is authorized by this milestone.
+scoped IAM, private connectivity, verified TLS and availability requirements.

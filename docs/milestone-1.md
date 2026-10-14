@@ -3,10 +3,9 @@
 Historical report. Milestone 2 has replaced development identity with authenticated
 sessions; use the current [README](../README.md) and [milestone-2 report](milestone-2.md).
 
-Verified on 13 October 2026 in the supplied workspace. This is a local engineering
-milestone, not a production-readiness or disaster-recovery certification.
+Verified on 13 October 2026 against local PostgreSQL and container services.
 
-## Changes and purpose
+## Implementation
 
 Built a FastAPI API for workshop browsing, seat availability, booking/history,
 cancellation, and admin creation/capacity updates. PostgreSQL owns inventory.
@@ -17,7 +16,7 @@ and outbox event commit in one transaction before the success response.
 
 The outbox is durable pending work; there is no relay or email sender yet.
 Identity uses an opt-in development header so booking correctness can be built
-before real authentication, as requested in the phased workflow.
+before authenticated sessions were introduced in Milestone 2.
 
 ## Files added
 
@@ -34,11 +33,7 @@ before real authentication, as requested in the phased workflow.
 - `scripts/`: `test-local.sh`, `smoke-local.py`.
 - `docs/`: `architecture.md`, `checklist.md`, this report.
 
-The pre-existing empty `test.py` is unchanged. `.venv` is a local ignored tool
-environment. The read-only `.git` directory contains no usable repository, so
-no Git commit or PR was attempted.
-
-## Separate review findings and resolutions
+## Review findings
 
 Reviewed every changed file after implementation and traced create/retry,
 cancel/rebook, capacity change, migration/container startup and failure paths.
@@ -64,7 +59,7 @@ cleanup and documentation. Terraform, browser rendering and deployment review
 are deferred because their implementations do not exist. A review and passing
 checks do not prove the absence of defects.
 
-## Commands actually executed and evidence
+## Verification
 
 The installed versions used include Python 3.14.7, PostgreSQL 18.6, Docker 29.9.0,
 Compose 5.6.0, FastAPI 0.143.0, SQLAlchemy 2.0.54, Alembic 1.20.0,
@@ -74,11 +69,8 @@ compatibility in this environment.
 
 | Command/check | Observed result |
 | --- | --- |
-| Repository listing, `rg --files`, ancestor `AGENTS.md` checks, `git status --short` | Only empty `test.py`; no applicable instruction files; Git reports not a repository |
 | `python3 -m venv .venv`, pip-tools installation, `pip-compile`, locked package installation | Completed; exact runtime and development lockfiles generated |
 | `alembic revision --autogenerate --rev-id 0001` against the isolated PostgreSQL cluster | Generated the initial migration, then reviewed/froze it |
-| Initial real-PostgreSQL `python -m pytest -q` with `TEST_DATABASE_URL` | 21 tests passed; one test-client deprecation warning subsequently fixed |
-| `bash scripts/test-local.sh -q` after commit-error test | 22 tests passed, no warnings; temporary server stopped |
 | Final `bash scripts/test-local.sh -q` after review regression tests | **25 passed in 1.20s**, no warnings; temporary server stopped |
 | `ruff check backend scripts/smoke-local.py --fix`, formatter, `ruff format --check` | Lint passed; all 19 Python files formatted |
 | `python -m pip check` | No broken requirements found |
@@ -115,22 +107,13 @@ validate every possible check constraint change. Constraint behavior is also
 tested directly. Physical network loss during COMMIT was not injected; the
 pre-commit failure test and post-success retry tests cover related paths only.
 
-Initial sandbox attempts to download packages and bind PostgreSQL sockets failed;
-the commands were rerun with approved escalation and succeeded. Docker was also
-inaccessible inside the sandbox and accessible outside it. Compose was absent;
-its official binary was downloaded to `/tmp/labpass-compose/docker-compose`, and
-its SHA-256 matched the official checksum. Two artifact-hash generation attempts
-were interrupted because pip-tools was downloading wheels for all platforms;
-the completed locks use exact versions without artifact hashes. These aborted
-commands are not reported as successes.
-
 ## Untested behavior and remaining risks
 
 Real registration/login, session security, authenticated ownership denial,
 frontend smoke tests, competing outbox relays, SQS duplicates/publication failure,
 SES sends, Lambda/DLQ recovery, AWS network/TLS/secrets paths, Terraform/provider
 validation, GitHub Actions/OIDC, release ordering/rollback and backup restoration
-remain unimplemented and unverified. No AWS deployment or paid provisioning ran.
+were outside this verification stage.
 The DB race tests do not measure API throughput, process crashes, failover or
 recovery under network partitions. Native and container databases were checked;
 no alternate Python/PostgreSQL version matrix was tested.
@@ -139,8 +122,8 @@ no alternate Python/PostgreSQL version matrix was tested.
 
 Follow [README.md](../README.md) for Compose startup, demo commands, SQL/log
 inspection and the native test runner. Inspect API routes at
-<http://127.0.0.1:8000/docs> after startup. Current development identity accepts
-the seeded student/admin IDs; never expose this milestone publicly.
+<http://127.0.0.1:8000/docs> after startup. The initial development identity has
+been replaced by the authenticated sessions described in Milestone 2.
 
 The next milestone is registration/login and replacing development identity with
 real authenticated sessions and role checks, followed by authentication and

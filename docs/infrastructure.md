@@ -1,0 +1,77 @@
+# Infrastructure design
+
+The Terraform foundation defines networking, container repositories and
+confirmation queues in `us-east-1`. Application workloads are not deployed.
+
+## Network boundaries
+
+A `10.42.0.0/16` VPC spans two standard availability zones discovered in the
+target account. Each zone has separate public, application and database subnets.
+
+| Subnets | CIDRs | Routing |
+| --- | --- | --- |
+| Public | `10.42.0.0/24`, `10.42.1.0/24` | Internet gateway |
+| Application | `10.42.10.0/24`, `10.42.11.0/24` | Shared zonal NAT; S3 gateway endpoint |
+| Database | `10.42.20.0/24`, `10.42.21.0/24` | Local VPC route only |
+
+Automatic public IP assignment is disabled on all subnets. The default security
+group has no ingress or egress rules. Workload-specific security groups remain
+to be defined with the application resources.
+
+The NAT gateway resides in the first public subnet. Both application zones use
+it, creating a shared egress dependency and potential cross-AZ transfer costs.
+A NAT gateway per AZ would remove that shared egress dependency. RDS availability
+is separate from subnet placement; two database subnets alone do not provide
+database failover.
+
+The S3 gateway endpoint is attached to both application route tables. It provides
+a route for same-region S3 access, including ECR image layers. Other service and
+bootstrap traffic uses the NAT path. IAM and service policies still control access.
+See [ECR VPC connectivity](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html)
+and [NAT availability](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-basics.html).
+
+## Image repositories
+
+Separate ECR repositories hold API/relay and Lambda images. Configuration enables
+immutable tags, AES256 encryption and scan-on-push. Releases will reference image
+digests rather than mutable tags. `force_delete=true` currently permits repository
+removal when images are present; artifact retention must be reviewed before
+using the configuration for a persistent environment.
+
+## Confirmation queues
+
+| Setting | Source queue | Dead-letter queue |
+| --- | --- | --- |
+| Type | Standard SQS | Standard SQS |
+| Retention | 4 days | 14 days |
+| Visibility | 360 seconds | Service default |
+| Encryption | SQS-managed | SQS-managed |
+| Redrive | After 5 receives | Accepts only this source queue |
+
+The source visibility matches the worker contract for a 60-second Lambda
+timeout. Longer DLQ retention preserves failed messages for investigation.
+Runtime roles and the Lambda event-source mapping remain pending. See
+[the AWS worker contract](aws-workers.md#sqs-lambda-and-email-settings).
+
+## Configuration and state
+
+Terraform requires a target account ID and enforces it through the AWS provider's
+`allowed_account_ids` setting. Region validation restricts this configuration to
+`us-east-1`. Resource names and tags identify the stack and its ownership.
+
+Terraform 1.15.x and AWS provider 6.68.0 are pinned. The provider lockfile records
+signed package checksums. State, plans, provider binaries and local variable
+files are excluded from Git. The current root uses local state; shared deployment
+requires encrypted, versioned remote state with locking and scoped access.
+
+## Verification and remaining integration
+
+Formatting and provider-schema validation passed. Four mocked Terraform tests
+verify topology, routing isolation, default-group rules, repository settings,
+queue policies and invalid configuration. These checks do not establish actual
+AWS connectivity or authorization.
+
+RDS, restricted database roles, runtime secrets, ALB/EC2, SSM, CloudFront/S3/OAC,
+DNS/ACM, Lambda/SES, deployment workflows and monitoring remain to be integrated.
+See [Terraform commands](../infra/README.md) and
+[foundation verification](milestone-5a.md).

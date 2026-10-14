@@ -10,9 +10,9 @@ before returning a success response; no session is shared between threads.
 See [FastAPI dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/)
 and [SQLAlchemy transaction contexts](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html).
 
-Assumptions: free seats, one seat per booking, integer capacities including zero,
-no scheduling/expiry/waitlist in milestone 1, and cancellation is allowed at any
-time. Workshop dates and cancellation deadlines remain deferred; the first UI
+Bookings are free, with one seat per booking and integer capacities including
+zero. Cancellation is allowed at any time. Scheduling, expiry and waitlists are
+not implemented. Workshop dates and cancellation deadlines remain deferred; the UI
 uses existing title/capacity fields without inventing a schedule.
 Registration validates email syntax and normalizes ASCII/IDNA email addresses;
 email ownership and deliverability are not verified yet. `.test` addresses are
@@ -183,7 +183,7 @@ volume targets that parent as documented by the
 Migration `0003` adds outbox retry metadata and a durable `email_deliveries` table,
 preserving existing bookings/events. Relays select due events with
 `FOR UPDATE SKIP LOCKED`, lock one event per transaction, publish, then record
-success. Batches stop when no event is available. Default publication budget is
+success. Batches stop when no event is available. The publication limit is
 five committed attempts, with exponential backoff capped at 300 seconds. Failed
 publication never changes the booking; exhausted rows retain a failure timestamp
 and sanitized error code. A crash rolls back that attempt's bookkeeping, and a
@@ -207,7 +207,7 @@ hosts. Mailpit has no forwarding/relay configured. Only its browser UI is
 published on loopback. Queue and mailbox persistence use retained named volumes.
 
 Queue visibility is 120 seconds. Unknown failures retain this delay so a message
-cannot burn its five-receive budget before its delivery lease expires. Poison and
+cannot exhaust its five-receive limit before its delivery lease expires. Poison and
 terminal delivery failures use a ten-second delay and eventually redrive to the
 DLQ. Queue acknowledgements use the receipt handle and happen after processing;
 a delete failure causes safe reprocessing of a recorded success. See
@@ -286,12 +286,11 @@ This is a target design, not deployed infrastructure. Planned paths:
   [Systems Manager endpoint requirements](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html).
   Bootstrap/package retrieval also needs network access or a prepared AMI.
 
-The temporary demo targets `us-east-1`, the owned domain `labpass.shop` and a
-$10 total budget. Its Terraform foundation uses one zonal NAT plus an S3 gateway
-endpoint, with two application AZs and isolated database subnets. The planned
-demo database is Single-AZ; DNS hosting and final workload settings remain to
-be confirmed. Cost estimates and teardown requirements are in the
-[demo plan](demo-plan.md). Availability options for a longer-lived deployment:
+The Terraform foundation targets `us-east-1` and uses one zonal NAT plus an S3
+gateway endpoint, with two application AZs and isolated database subnets.
+Database resources and availability settings remain to be implemented. See
+[infrastructure design](infrastructure.md) for the current network boundaries
+and integration status. Availability and egress trade-offs:
 
 | Option | Cost implications | Availability and operations |
 | --- | --- | --- |
@@ -303,12 +302,12 @@ be confirmed. Cost estimates and teardown requirements are in the
 
 See [AWS NAT designs](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html)
 and [RDS Multi-AZ DB instances](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html).
-The selected one-NAT demo design has a shared egress failure point and possible
+The selected one-NAT design has a shared egress failure point and possible
 cross-AZ charges. Regional NAT also exists and is billed per active AZ; its
-automatic expansion is unnecessary for this fixed temporary footprint. See
+per-AZ capacity is an alternative for availability requirements. See
 [regional NAT](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html).
 No cloud resources have been provisioned. Multi-AZ database failover remains a
-separate availability choice rather than a guarantee of this demonstration.
+separate availability choice rather than a consequence of two-AZ subnet placement.
 
 GitHub Actions will authenticate with AWS using OIDC constrained to the repository
 and deployment environment. Releases will deploy ECR digests, run one migration

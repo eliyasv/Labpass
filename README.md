@@ -151,4 +151,4 @@ deployment, GitHub Actions, load testing and monitoring are the next steps.
 - [AWS worker configuration](docs/aws-workers.md)
 - [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)
-- [Verification reports](docs/milestone-4b.md)
+- [Technical documentation and verification](docs/README.md)

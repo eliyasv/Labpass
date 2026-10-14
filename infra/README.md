@@ -1,6 +1,6 @@
 # Terraform
 
-Infrastructure for the temporary LabPass demo in `us-east-1`.
+Infrastructure configuration for LabPass in `us-east-1`.
 
 ## Foundation
 
@@ -19,8 +19,8 @@ Lambda mapping are added with the workloads.
 
 This is the foundation, not a deployable application stack. RDS, runtime roles,
 secrets, compute, frontend hosting, TLS/DNS and monitoring remain to be added.
-Do not apply this root while preparing the remaining stack: an idle NAT gateway
-still incurs charges. See [demo costs and lifecycle](../docs/demo-plan.md).
+Network boundaries and integration requirements are documented in
+[infrastructure design](../docs/infrastructure.md).
 
 ## Offline checks
 
@@ -51,8 +51,8 @@ no default or sample account in executable configuration. The AWS provider's
 authenticated role/profile instead of credentials in Terraform variables.
 
 This root currently uses Terraform's local backend. Preserve its state outside
-Git if it is ever applied; do not delete it before teardown. Before CI/shared
-execution, configure encrypted, versioned S3 state with locking and scoped access.
+Git. Before CI/shared execution, configure encrypted, versioned S3 state with
+locking and scoped access.
 S3 supports `use_lockfile`; the state backend does not require a DynamoDB table.
 See [S3 backend configuration](https://developer.hashicorp.com/terraform/language/backend/s3).
 
@@ -60,11 +60,10 @@ Provider binaries, state, plan files, local variable files and crash logs are
 ignored. Commit the provider lockfile. No secret values are stored in this
 foundation's inputs or outputs.
 
-## Cleanup
+## Resource ownership
 
-Provisioning and teardown happen only after reviewing the complete stack and
-obtaining authorization. This stack owns only its dedicated demo resources.
-ECR repositories have `force_delete=true` so authorized teardown can remove
-uploaded demo images. Do not import existing shared resources into this disposable
-state. The later workload stack must be removed before the foundation because it
-will attach to these subnets, queues and repositories.
+Workload integration uses the foundation's network, repository and queue outputs.
+Existing shared resources should retain separate state ownership. ECR currently
+sets `force_delete=true`, which permits repository removal when images are present.
+Review artifact retention before reusing this configuration for a persistent
+environment.

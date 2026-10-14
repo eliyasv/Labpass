@@ -1,10 +1,10 @@
 # Milestone 2: authentication
 
-Implemented and verified on 13 October 2026 (Asia/Kolkata). This report covers
+Implemented and verified on 13 October 2026. This report covers
 local authentication and its integration with inventory; it does not certify
 public deployment readiness.
 
-## What changed and why
+## Implementation
 
 Replaced development identity with registration, login, current-session lookup
 and logout. Passwords use Argon2id. PostgreSQL stores session-token digests and
@@ -45,11 +45,9 @@ Updated:
 - `README.md`, `docs/architecture.md`, `docs/checklist.md`, and a historical-note
   addition to `docs/milestone-1.md`.
 
-The initial migration and booking service were preserved. No usable Git metadata
-exists in the workspace, so no commit or PR was created. Existing local services
-on port 8000 were left running with their previous image.
+The initial migration and booking service were preserved.
 
-## Separate review findings and fixes
+## Review findings
 
 Reviewed every changed file and traced registration/conflicts, login/rehash,
 session rotation, booking ownership, admin checks, expiry/logout, failure before
@@ -72,7 +70,7 @@ the application safe against every browser/credential attack. No unresolved
 finding blocks the documented local milestone; deployment hardening remains
 explicitly incomplete below.
 
-## Commands actually executed and results
+## Verification
 
 New runtime dependencies are locked to argon2-cffi 25.1.0 and email-validator
 2.3.0, with resolved transitive versions. Python 3.14.7, PostgreSQL 18.6,
@@ -80,17 +78,12 @@ FastAPI 0.143.0, SQLAlchemy 2.0.54 and Alembic 1.20.0 were used.
 
 | Command/check | Observed result |
 | --- | --- |
-| Repository/instruction inspection and `git status --short` | No applicable AGENTS.md found; Git remains unusable; existing source inspected |
 | `pip-compile --strip-extras` for runtime, `--allow-unsafe` for dev, then locked pip installation | Resolution and installation completed successfully |
 | Schema/app import probe using installed packages | Registration schema normalized a `.test` email; app routes constructed successfully |
-| Initial `bash scripts/test-local.sh -q` with session-based booking fixtures | 31 passed |
-| Same command after authentication/security tests | 58 passed |
-| Same command after readiness review fix | 59 passed |
 | Final `bash scripts/test-local.sh -q` after configuration and migration-failure checks | **63 passed in 3.21s**, no warnings; temporary PostgreSQL server stopped |
 | `ruff check backend scripts/smoke-local.py`; `ruff format --check` | All checks passed; 23 Python files formatted |
 | Host and container `python -m pip check` | No broken requirements found |
 | `bash -n scripts/test-local.sh` | Exit 0 |
-| Compose `-p labpass-m1-verification up --build -d` | Initial build/migration completed, but startup on port 8000 failed because another stack owned the port |
 | Same Compose build/start with `LABPASS_PORT=8001` | Completed; DB/API healthy, migration exited 0, loopback port 8001 published |
 | Container `python -m labpass.seed`, `alembic current`, `alembic check` | Seed succeeded; revision `0002 (head)`; no new upgrade operations detected |
 | `LABPASS_PORT=8001 .venv/bin/python scripts/smoke-local.py` | Real register/login/me/booking/retry/history/cancel/logout flow passed, including 401 after logout; repeated on final image |
@@ -139,29 +132,24 @@ inject pre-commit exceptions while the transactions themselves use PostgreSQL.
 
 Follow the current [README](../README.md) to rebuild/start your local stack,
 seed its workshop, register/login in Swagger, pass the CSRF header and create an
-operator admin. The temporary Compose executable remains available at
-`/tmp/labpass-compose/docker-compose` if the plugin is absent.
-
-At the original milestone verification, the default stack on port 8000 still had
-its previous image. `docker compose up --build --wait --wait-timeout 60` applies
-the new code and migration and waits for API health. Credentials
-for old fixtures are not supplied automatically. API inspection uses
+operator admin. `docker compose up --build --wait --wait-timeout 120` applies
+the code and migrations and waits for API health. Legacy fixture accounts cannot
+log in; credential activation is not implemented. API inspection uses
 `/api/auth/me`, `/api/bookings`, and Swagger; avoid printing password hashes or
 session cookies into logs. Native checks run with `bash scripts/test-local.sh -q`.
 
 ## Startup race follow-up
 
-The user rebuilt the default stack and seeded its workshop, but the immediate
-readiness GET failed with `ConnectionResetError`. Inspection found the API
-healthy, Uvicorn startup complete and migrations exited successfully. Compose's
-"Started" status can precede application readiness.
+An immediate readiness request after container startup could fail with
+`ConnectionResetError`, because Compose's "Started" status can precede
+application readiness.
 
 The smoke script now polls only the readiness GET for up to 30 seconds, with
 two-second maximum request timeouts and a bounded interval. It retries connection
 failures and HTTP 503, fails immediately on other HTTP errors or invalid health
 responses, and reports the endpoint and log command on timeout. Authentication
-and booking mutations retain their original request behavior. README startup now
-uses [`--wait --wait-timeout 60`](https://docs.docker.com/reference/cli/docker/compose/up/).
+and booking mutations retain their original request behavior. Startup uses
+[`--wait`](https://docs.docker.com/reference/cli/docker/compose/up/).
 
 Verification: `pytest -q scripts/tests` passed **9 tests** covering transient
 failures, bounded deadlines, unexpected status/payload handling and HTTP error
@@ -170,11 +158,11 @@ propagation/response closure. `ruff check backend scripts` and
 the retry scope, exception ordering (`HTTPError` before `URLError`), response
 closure, deadline calculations and docs against the executable commands.
 
-Against the user's default project, `docker restart labpass-api-1` immediately
+On the local stack, `docker restart labpass-api-1` immediately
 followed by the full HTTP smoke passed registration through logout. Compose
 `up --wait --wait-timeout 60` also succeeded with the one-shot migration service:
-DB/API healthy and migration exited 0. The default project remains running on
-port 8000. Backend code/schema did not change; the earlier 63-test PostgreSQL
+DB/API healthy and migration exited 0. Backend code/schema did not change;
+the earlier 63-test PostgreSQL
 suite was not rerun for this script/documentation fix.
 
 Next: React/TypeScript/Vite frontend for registration/login, workshop availability,

@@ -10,7 +10,7 @@ SHA-256: `fe45bbebf92ad3e27a583bbb2ddd1553c521ed4d49af5514dc0a40372ea5395c`.
 Refresh deliberately when AWS changes the trust store or before a database CA
 rotation. Download to a temporary file, inspect certificates/validity, review the
 diff, update this checksum and rebuild/retest both images. Compare the selected
-RDS CA against the bundle during the authorized deployment. Never replace
+RDS CA against the bundle before deployment. Never replace
 `verify-full` with an encryption-only mode to bypass a certificate failure.
 
 See [RDS TLS and certificate bundles](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)

@@ -125,8 +125,8 @@ LABPASS_PORT=8002 docker compose -p labpass-m3-verification stop
 
 Data is retained after stopping. Repeated runs accumulate fixtures; choose a
 fresh project name with a `labpass-m3-verification-` prefix when needed and update
-the test container name. Tests assume their workshops fit within the first
-50 rows. Chromium is the tested browser; operating-system libraries may be
+the test container name. Browser fixtures must fit within the first 50 workshop
+rows. Chromium is the tested browser; operating-system libraries may be
 required. See [Playwright browser installation](https://playwright.dev/docs/browsers).
 
 ## API requests and booking retries

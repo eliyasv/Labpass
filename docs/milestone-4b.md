@@ -1,12 +1,12 @@
 # Milestone 4B: AWS worker preparation
 
-Verified 14 October 2026 (Asia/Kolkata). Cloud worker code and packaging are
+Verified 14 October 2026. Cloud worker code and packaging are
 complete for offline verification. No AWS infrastructure was provisioned, no
 real confirmation email was sent, and no SQS/SES/Secrets Manager call was made.
-Terraform and deployment remain pending. Development is on `dev`, tracking
-`origin/dev`; this milestone is committed locally without pushing.
+This report records the worker verification stage; current infrastructure status
+is in the [project checklist](checklist.md).
 
-## Changes and purpose
+## Implementation
 
 The cloud relay publishes the existing stable event envelope to real SQS using
 an execution-role SDK client. The Lambda entry point loads authoritative data
@@ -45,7 +45,7 @@ No new dependencies, schema changes or frontend contracts are introduced.
 | `docs/aws-workers.md` | IAM/DB access, private networking, mapping settings, configuration and release contract |
 | `README.md`, `docs/architecture.md`, `docs/checklist.md`, `docs/git-workflow.md`, this report | Current progress, dev branch workflow, commands and verification limits |
 
-## Separate review findings and fixes
+## Review findings
 
 Reviewed each changed source/config/test/document and traced booking → outbox →
 SQS → claim → SES → completion, including failure and warm-runtime refresh paths.
@@ -72,7 +72,7 @@ isolation and generated API contract alongside these changes.
 No unresolved high-severity issue was found in these reviewed offline paths.
 This does not establish production readiness or validate actual IAM/network rules.
 
-## Commands executed and results
+## Verification
 
 | Command/check | Observed result |
 | --- | --- |
@@ -90,18 +90,8 @@ This does not establish production readiness or validate actual IAM/network rule
 | Public RDS bundle download, SHA-256 and OpenSSL certificate inspection | Downloaded from official HTTPS trust store; checksum/provenance in `backend/certs/README.md`; no private keys |
 | `git diff --check` and selected source/secret review | Passed before staging; only public CA/test identifiers are included |
 
-PostgreSQL initially could not bind its Unix socket in the sandbox. Public trust
-store DNS and Docker socket access were also blocked. These operations succeeded
-after requesting the required execution permissions. The test cluster stopped
-normally and remains at `/tmp/labpass-tests.NxosCX` for inspection. Earlier test
-clusters were also stopped/retained. A `unittest discover` trial found no tests;
-the correct pytest command above executed all nine smoke regressions.
-
-Docker still lacks Buildx/Compose plugins; classic builds emitted a deprecation
-warning. Pip emitted cache permission notices; dependency compatibility checks
-passed. Lambda verification used no published ports, `--network none`, read-only
-root filesystem, a temporary `/tmp` mount and UID/GID 10001. Both milestone test
-containers were stopped and retained; the default Compose stack was not restarted.
+Lambda verification used no published ports, `--network none`, a read-only root
+filesystem, a writable `/tmp` mount and UID/GID 10001.
 
 ## Tested behavior and limits
 
@@ -119,25 +109,20 @@ not verified. Public HTTPS/browser flows were not rerun because their code and
 contract are unchanged. Local Mailpit/ElasticMQ smoke evidence remains in
 [Milestone 4](milestone-4.md); it was not rerun against these newly built images.
 
-The concurrency/pool budget, restricted worker DB roles, service/engine regional
+Concurrency/pool limits, restricted worker DB roles, service/engine regional
 availability, log/queue/DLQ/backlog alarms, SES identity/sandbox/bounce controls,
 image digest/base/hash policy and AWS API secret bootstrap still require the
 infrastructure/delivery milestones. Time checks reduce risk; they cannot guarantee
-completion within a record's budget during a slow dependency or hard timeout.
-Exactly-once email is not promised. Terraform/CI files are not yet implemented.
+completion within the available time during a slow dependency or hard timeout.
+Exactly-once email is not promised. Workload Terraform and CI remain pending.
 
 ## Run locally and next step
 
 Run `bash scripts/test-local.sh -q`; expect 135 passing backend tests. For the
 Lambda build/emulator commands, see [Run offline](aws-workers.md#run-offline).
-The final retained container is named `labpass-m4b-lambda-final`; start that name
-to inspect this verified image, or use a fresh name when rebuilding. Local UI and
-Mailpit usage still follow the README.
+Local UI and Mailpit usage follow the README.
 
-Next: Milestone 5, reviewable Terraform. Confirm region, domain and budget, compare
-current NAT/endpoints and database availability costs, then encode networking,
-roles, RDS/secrets, SQS/DLQ, Lambda/SES and frontend/API infrastructure. CI/CD follows
-with GitHub Actions OIDC, immutable images, single migrations and release smoke
-checks. Provisioning, AWS deployment and resource destruction require explicit
-authorization. Significant official references are linked in the
+Workload integration requires runtime roles, RDS/secrets, Lambda/SES and
+frontend/API infrastructure. CI/CD requires GitHub Actions OIDC, immutable images,
+single migrations and release smoke checks. Official references are linked in the
 [worker contract](aws-workers.md).

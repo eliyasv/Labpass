@@ -12,8 +12,7 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 
 ## Milestone 1: local booking correctness
 
-- [x] Inspect repository and applicable instructions; preserve existing `test.py`.
-- [x] Explain architecture, assumptions, repository layout and phased plan.
+- [x] Document architecture, repository layout and implementation scope.
 - [x] FastAPI browsing, availability, booking/history/cancellation routes.
 - [x] Development-only identity explicitly gated; ownership and admin checks.
 - [x] Admin workshop creation and safe capacity updates.
@@ -50,11 +49,6 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
   Add reconciliation monitoring before deployment.
 - Version locks have no artifact hashes and local base image tags are mutable.
   Delivery will add hash/base digest policies and deploy immutable application image digests.
-- Local Git commits capture the verified baseline; development now uses `dev`
-  tracking `origin/dev`. No PR or push is performed by this milestone.
-  See [Git workflow](git-workflow.md) for grouping and future milestone commits.
-- Compose was downloaded temporarily for verification; install the official plugin for normal use.
-- Passing tests establish tested scenarios, not proof of correctness or production readiness.
 
 ## Milestone 2: authentication
 
@@ -92,7 +86,7 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] Build Lambda image and verify imports/runtime emulator offline as non-root with networking disabled.
 - [x] Real-PostgreSQL tests with stubbed AWS responses, including SES acceptance/commit failure.
 - [x] Document scoped IAM/DB permissions, private connectivity and mapping/release requirements.
-- [ ] Provision/verify real SQS/Lambda/SES/DLQ, policies, RDS TLS and secret rotation after authorization.
+- [ ] Verify deployed SQS/Lambda/SES/DLQ, policies, RDS TLS and secret rotation.
 - [x] Test consumer duplicates, retry/lease expiry, poison validation and partial batch failure.
 - [x] Actual queue redrive, duplicate capture smoke, queue/mail persistence after restart.
 - [x] Operator resets refuse sent deliveries/live leases; failure or expired-lease recovery tested.
@@ -101,14 +95,14 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 
 ## Milestone 5A: Terraform foundation
 
-- [x] Confirm `us-east-1`, owned domain `labpass.shop` and $10 total for a temporary demo.
-- [x] Compare egress/database choices and estimate a short demo, without assuming free credits.
+- [x] Target `us-east-1` with an explicit account guard.
+- [x] Document network boundaries and egress/availability trade-offs.
 - [x] Two-AZ public/application/isolated-database subnets, one zonal NAT and an S3 gateway endpoint.
 - [x] ECR repositories with immutable tags and standard SQS/DLQ matching the worker contract.
 - [x] Required account ID, empty default security-group rules and Terraform artifact/state ignores.
 - [x] Pin and lock the AWS provider; formatting, validation and offline mock-provider tests.
-- [x] Separate code review, demo cost/cleanup plan and foundation instructions.
-- [ ] Confirm DNS hosting/delegation and actual demo duration before workload deployment.
+- [x] Review configuration and document foundation verification/integration requirements.
+- [ ] Configure DNS hosting/delegation and certificate validation.
 
 ## Remaining milestones 5–6: workloads, delivery and operations
 
@@ -122,4 +116,3 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [ ] k6 tests with real overlap and measured results; capacity/pool tuning.
 - [ ] CloudWatch latency/errors, targets, DB connections, outbox, queue age/DLQ and Lambda alarms.
 - [ ] Backup/restore runbook and actual restoration exercise; migration rollback limits.
-- [ ] Obtain explicit authorization before provisioning, AWS deployment or resource destruction.

@@ -12,7 +12,7 @@ handler `labpass.lambda_handler.lambda_handler`. The official
 includes the runtime interface client/emulator. The image installs the project's
 existing Python lock into `/var/task` so the tested SDK overrides the bundled SDK.
 Only x86_64 has been built/tested. Publish and deploy an immutable image digest
-after authorization; local base tags and Python artifact hashes still need
+for deployment; local base tags and Python artifact hashes still need
 delivery hardening.
 
 Relay: use the backend image with command `python -m labpass.aws_relay`.
@@ -78,7 +78,7 @@ Initial Terraform settings to encode and validate:
 | Event-source response | `ReportBatchItemFailures` |
 | Batch size/window | Start at `1` / `0` seconds; mixed batches up to `10` are covered by handler tests |
 | DLQ redrive | `maxReceiveCount` at least `5`; retention longer than source retention, alarm on depth |
-| Concurrency | Set reserved concurrency and mapping maximum concurrency against the RDS connection budget before enabling the mapping |
+| Concurrency | Set reserved concurrency and mapping maximum concurrency within the RDS connection limit before enabling the mapping |
 
 AWS recommends source visibility of six times the function timeout, adding the
 batching window when enabled. A DB lease uses the database clock and does not
@@ -144,15 +144,15 @@ and [SES endpoints](https://docs.aws.amazon.com/ses/latest/dg/send-email-set-up-
 
 EC2 also needs explicit ECR API/DKR and S3 layer retrieval, SSM, logs and bootstrap
 paths. Lambda image retrieval is performed by the Lambda service with appropriate
-ECR repository permissions, rather than by this Python handler. Region, domain,
-budget and NAT/endpoint/Single-AZ/Multi-AZ choices precede infrastructure code.
-No cost/availability option has been selected here.
+ECR repository permissions, rather than by this Python handler. The Terraform
+foundation provides a zonal NAT and an S3 gateway endpoint; workload-specific
+permissions, database resources and availability configuration remain pending.
 
 Planned release: OIDC-authenticated CI builds and tests immutable images; a
 controlled job runs additive migrations once; configure roles/secrets/TLS;
 deploy API/relay and Lambda versions; then enable the source mapping and run a
 real end-to-end smoke. Serialize releases so an older job cannot overwrite a
-newer deployment. Detailed Terraform and GitHub Actions remain next milestones.
+newer deployment. Workload Terraform and GitHub Actions remain pending.
 The API still uses its existing `DATABASE_URL` configuration: cloud API secret
 bootstrap is separate infrastructure work, not implemented by these worker adapters.
 
@@ -174,7 +174,7 @@ docker stop labpass-m4b-lambda-verification
 Expected `Lambda offline smoke passed` and `No broken requirements found`.
 The smoke checks direct handler behavior and actual runtime-emulator invocations,
 using only container loopback. Empty batches succeed; missing cloud configuration
-or inadmissible time budget returns retryable IDs. This proves packaging/failure
+or insufficient invocation time returns retryable IDs. This verifies packaging/failure
 behavior, not AWS integration. The suite uses real PostgreSQL and boto3 Stubber
 with SDK network requests forbidden. Test-only resource identifiers are fictional.
 
