@@ -224,10 +224,14 @@ record success leaves an ambiguous result: retry can send a duplicate email,
 while suppressing retry can lose one if the send failed. Exactly-once email
 delivery is not promised, even with a stable Message-ID or fenced DB updates.
 
-`process_sqs_batch` prepares Lambda's partial-failure response shape: only failed
-records are returned for retry. The handler core is tested; an actual Lambda
-entry point, SES adapter, event-source mapping (`ReportBatchItemFailures`), roles,
-private DB connectivity and deployment are future work. See
+`process_sqs_batch` tests the partial-failure response shape. Milestone 4B adds the
+Lambda entry point and cloud relay/SQS/SES adapters, Secrets Manager refresh and
+RDS TLS configuration. The Lambda consumer uses 120-second delivery leases,
+source ARN validation, time admission checks and per-record failure responses.
+Real PostgreSQL plus stubbed SDK responses verify transactions; the official
+runtime emulator verifies offline packaging. Actual mapping (`ReportBatchItemFailures`),
+roles, private connectivity and deployment remain pending. See the
+[AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
 No DynamoDB seat-availability store is planned. Adding it now would create a

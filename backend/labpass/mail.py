@@ -4,6 +4,15 @@ from email.message import EmailMessage
 from labpass.delivery import SendError
 
 
+def confirmation_text(claim):
+    confirmation = claim.confirmation
+    return (
+        f"Your reservation was received for {confirmation.workshop_title}.\n\n"
+        f"Booking reference: {confirmation.booking_id}\n"
+        "Check My bookings in LabPass for its current status.\n"
+    )
+
+
 class LocalSmtpSender:
     def __init__(self, settings):
         self.host, self.port = settings.smtp_host, settings.smtp_port
@@ -15,11 +24,7 @@ class LocalSmtpSender:
         message["To"] = confirmation.recipient
         message["Subject"] = "Your LabPass reservation"
         message["Message-ID"] = f"<{claim.event_id}@labpass.test>"
-        message.set_content(
-            f"Your reservation was received for {confirmation.workshop_title}.\n\n"
-            f"Booking reference: {confirmation.booking_id}\n"
-            "Check My bookings in LabPass for its current status.\n"
-        )
+        message.set_content(confirmation_text(claim))
         try:
             with smtplib.SMTP(self.host, self.port, timeout=5) as smtp:
                 smtp.send_message(message)

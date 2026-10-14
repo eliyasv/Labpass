@@ -1,0 +1,7 @@
+FROM public.ecr.aws/lambda/python:3.14
+COPY requirements.lock ${LAMBDA_TASK_ROOT}/requirements.lock
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.lock --target ${LAMBDA_TASK_ROOT}
+COPY labpass ${LAMBDA_TASK_ROOT}/labpass
+COPY certs/rds-global-bundle.pem ${LAMBDA_TASK_ROOT}/certs/rds-global-bundle.pem
+ENV LABPASS_DB_CA_FILE=/var/task/certs/rds-global-bundle.pem
+CMD ["labpass.lambda_handler.lambda_handler"]

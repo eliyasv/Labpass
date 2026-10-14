@@ -52,10 +52,15 @@ builds, browser results and local data artifacts are excluded. `.env.example`
 contains only development example values and is tracked. Pattern checks help
 detect accidental secrets but do not prove their absence.
 
-## GitHub later
+## Current branch and GitHub publication
 
-Commits work locally without a remote. No repository creation, remote addition
-or push was performed as part of establishing this baseline. When the GitHub
-repository exists, connect its actual URL and choose which branch to publish.
+No repository creation, remote addition or push was performed as part of
+establishing the baseline. The workspace now has an `origin` remote and uses
+`dev`, tracking `origin/dev`; subsequent milestone commits stay on `dev`.
 Use `git remote -v` to inspect remotes and `git branch --show-current` to inspect
 the current branch. Push only when publication is requested.
+
+Planned delivery flow: feature changes merge into `dev` after CI; promote reviewed
+changes to `main` for an approved AWS release. GitHub Actions will use OIDC, run
+migrations once and deploy immutable image digests. Workflows and branch
+protection remain future implementation/configuration steps.

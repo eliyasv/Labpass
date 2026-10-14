@@ -6,6 +6,7 @@ RUN python -m pip install -r requirements.lock \
     && groupadd --gid 10001 labpass \
     && useradd --uid 10001 --gid labpass --no-create-home labpass
 COPY --chown=labpass:labpass labpass ./labpass
+COPY --chown=labpass:labpass certs ./certs
 COPY --chown=labpass:labpass migrations ./migrations
 COPY --chown=labpass:labpass alembic.ini .
 USER labpass

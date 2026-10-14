@@ -3,13 +3,27 @@
 An AWS portfolio project for reserving free seats in cloud and DevOps workshops.
 Milestones 1–3 implement the booking backend, real authentication, PostgreSQL
 migrations and React frontend. Milestone 4 adds a verified local queue/email
-pipeline. AWS SQS/Lambda/SES deployment remains a later authorized step.
+pipeline. Milestone 4B adds cloud SQS/SES adapters, a Lambda handler and worker
+secret/TLS configuration, verified offline. AWS deployment remains a later authorized step.
 
 Python 3.14 and PostgreSQL 18 are the supported local versions for this milestone.
-`test.py` was present before implementation and remains untouched. This workspace
-is versioned locally with commits grouped into repository setup, backend,
-frontend/local stack and documentation. No GitHub remote is configured yet.
+`test.py` was present before implementation; its IDE tab is currently open but the
+file is absent from disk. This milestone did not create or remove it. The baseline
+commits group repository setup, backend, frontend/local stack and documentation.
+Current development uses `dev`, tracking `origin/dev`.
 See [Git workflow](docs/git-workflow.md) for the baseline and future commit strategy.
+
+## Cloud worker preparation
+
+The AWS relay and Lambda consumer reuse the durable PostgreSQL claims from the
+local pipeline. They load worker credentials from Secrets Manager, require
+verified RDS TLS, and keep failures retryable without changing seat inventory.
+The default local stack continues to capture mail in Mailpit.
+
+Run `bash scripts/test-local.sh -q` for real PostgreSQL tests with stubbed AWS
+responses. The [AWS worker contract](docs/aws-workers.md) includes the offline
+Lambda image/emulator smoke, runtime settings, IAM scopes, private network paths
+and release order. See [Milestone 4B evidence](docs/milestone-4b.md).
 
 ## Run with Docker Compose
 
@@ -339,15 +353,16 @@ docs/milestone-3.md     frontend review and browser verification evidence
 docs/milestone-4.md     local background pipeline, failure tests and remaining AWS work
 ```
 
-Future directories will be introduced when they contain working code:
-`workers/` (relay and Lambda), `infra/`
+Workers share booking models under `backend/labpass`; Lambda has its own Dockerfile.
+Future directories will be introduced when they contain working code: `infra/`
 (Terraform), `.github/workflows/` (GitHub Actions), and `load-tests/` (k6).
 
 1. Local booking API, migrations, correctness tests, containers.
 2. Registration/login, password hashing, authenticated sessions, real roles and ownership tests (done).
 3. React workshop browsing, booking/history/cancellation, admin flow and smoke tests (done).
 4. Coordinated outbox relays, local SQS/SMTP, duplicate handling and failure tests
-   (local part done); AWS Lambda/SES adapters and deployment remain pending.
+   (done locally); cloud relay/Lambda/SES adapters and secret/TLS preparation are
+   verified offline. AWS resources, roles, mapping and deployment remain pending.
 5. Reviewable AWS Terraform, networking/cost choices, IAM/OIDC, TLS, secrets and alarms.
 6. Authorized deployment, immutable artifacts, controlled migrations, load testing,
    release smoke tests and verified backup restoration.

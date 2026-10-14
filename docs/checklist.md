@@ -1,11 +1,13 @@
 # Project checklist
 
 Updated 14 October 2026 (Asia/Kolkata). Milestones 1–3 and the local part of
-Milestone 4 are complete. AWS email deployment remains pending.
+Milestone 4 are complete, with Milestone 4B cloud worker code verified offline.
+AWS email deployment remains pending.
 Evidence and remaining limits are recorded in [milestone-1.md](milestone-1.md)
 and [milestone-2.md](milestone-2.md), with frontend evidence in
 [milestone-3.md](milestone-3.md).
 Local background processing is recorded in [milestone-4.md](milestone-4.md).
+Cloud worker evidence is in [milestone-4b.md](milestone-4b.md).
 
 ## Milestone 1: local booking correctness
 
@@ -47,7 +49,8 @@ Local background processing is recorded in [milestone-4.md](milestone-4.md).
   Add reconciliation monitoring before deployment.
 - Version locks have no artifact hashes and local base image tags are mutable.
   Delivery will add hash/base digest policies and deploy immutable application image digests.
-- Local Git commits capture the verified baseline; no remote or PR is configured.
+- Local Git commits capture the verified baseline; development now uses `dev`
+  tracking `origin/dev`. No PR or push is performed by this milestone.
   See [Git workflow](git-workflow.md) for grouping and future milestone commits.
 - Compose was downloaded temporarily for verification; install the official plugin for normal use.
 - Passing tests establish tested scenarios, not proof of correctness or production readiness.
@@ -82,7 +85,13 @@ Local background processing is recorded in [milestone-4.md](milestone-4.md).
 - [x] Test publication failures, competing relays and publish-before-commit duplicates.
 - [x] Persistent local SQS-compatible queue/DLQ, Mailpit capture and background workers.
 - [x] Durable PostgreSQL delivery claims with leases, owner fencing and bounded sends.
-- [ ] SQS/Lambda/SES processing and DLQ; stable event IDs and delivery claims.
+- [x] Cloud SQS publisher and SES sender reuse stable IDs and PostgreSQL claims.
+- [x] Lambda entry point with source validation, partial failures and time admission checks.
+- [x] Worker Secrets Manager refresh, sanitized failures, bounded pools and verified TLS configuration.
+- [x] Build Lambda image and verify imports/runtime emulator offline as non-root with networking disabled.
+- [x] Real-PostgreSQL tests with stubbed AWS responses, including SES acceptance/commit failure.
+- [x] Document scoped IAM/DB permissions, private connectivity and mapping/release requirements.
+- [ ] Provision/verify real SQS/Lambda/SES/DLQ, policies, RDS TLS and secret rotation after authorization.
 - [x] Test consumer duplicates, retry/lease expiry, poison validation and partial batch failure.
 - [x] Actual queue redrive, duplicate capture smoke, queue/mail persistence after restart.
 - [x] Operator resets refuse sent deliveries/live leases; failure or expired-lease recovery tested.
