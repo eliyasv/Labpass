@@ -11,9 +11,8 @@
 
 ## Verification records
 
-Results below are verification snapshots for their respective implementation
-stages. Earlier test totals are superseded by the later backend suite, not added
-together. AWS deployment and recovery remain unverified.
+Results are recorded per implementation stage. Each backend total is a snapshot
+of the suite at that stage. AWS deployment and recovery remain unverified.
 
 | Stage | Evidence |
 | --- | --- |

@@ -39,22 +39,15 @@ variable files and crash logs are excluded from Git.
 
 ## Review findings
 
-Reviewed all changed configuration, provider lock, tests and documents. Traced
-public-subnet internet routing, application NAT/S3 egress, database isolation,
-default-group rules, queue retry/redrive and output compatibility with the worker
-configuration. No application source/schema or authenticated request flow changed.
-
 - **Low, fixed:** default-group rules and database routes were implicit. Explicit
   empty rule/route collections now declare the intended isolation, and tests check them.
 - **Test setup, fixed:** computed IDs were unavailable to plan-only assertions.
-  The topology test now uses the mock provider's in-memory apply. An initial
-  attempt to generate resource values during the plan caused inconsistent random
-  mock values during apply; default apply-phase generation fixes this. Distinct
-  fixed source/DLQ identities make the queue-reference assertions meaningful.
+  The topology test uses the mock provider's in-memory apply with apply-phase
+  resource-value generation. Distinct fixed source/DLQ identities verify queue references.
 - **Availability limitation:** one NAT creates a shared egress dependency.
   Database failover is separate from two-AZ subnet placement and is not implemented.
 - **Artifact retention:** ECR `force_delete=true` permits removal of repositories
-  containing images. Review retention before adopting a persistent environment.
+  containing images.
 
 Mocked tests do not validate real AWS permissions, networking or service behavior.
 
@@ -79,21 +72,17 @@ available zone. No persistent foundation state was created by testing.
 
 ## Run and inspect
 
-Use the commands in [Terraform](../infra/README.md#offline-checks). They initialize
-only local provider dependencies, validate configuration and execute mocked tests.
-No AWS credentials are needed. Current resource boundaries and pending workload
-integration are documented in [infrastructure design](infrastructure.md).
+Commands: [Terraform offline checks](../infra/README.md#offline-checks).
+Tests use a mocked provider and require no AWS credentials.
+Resource boundaries and pending workloads: [Infrastructure](infrastructure.md).
 
 ## Remaining work
 
 Real account authorization/AZ availability, AWS provisioning, network reachability,
 ECR publishing and SQS redrive have not been tested in AWS.
 Cloud performance and recovery remain unverified.
-The application suite was not rerun because this change touches only Terraform
-and documentation; its previous verification is recorded in earlier reports.
 
-Next: add RDS and restricted DB roles, secret bootstrap/refresh integration,
-ALB/EC2/SSM, CloudFront/S3/OAC, DNS/ACM, Lambda/SES and scoped runtime roles.
-Configure DNS management and certificate validation, then add remote state,
-GitHub Actions OIDC, immutable releases, single migrations, alarms and a tested
-deployment runbook.
+Pending components: RDS and restricted DB roles, secret bootstrap/refresh,
+ALB/EC2/SSM, CloudFront/S3/OAC, DNS management and ACM validation, Lambda/SES,
+scoped runtime roles, remote state, GitHub Actions OIDC, immutable releases,
+single migrations, alarms and deployment/recovery runbooks.

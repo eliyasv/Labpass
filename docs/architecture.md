@@ -1,26 +1,26 @@
 # Architecture and decisions
 
-## Current local milestones
+## Application scope
 
 FastAPI uses synchronous SQLAlchemy sessions and psycopg, with PostgreSQL as the
 single authoritative store for bookings and inventory. Synchronous route handlers
-run through FastAPI's worker thread mechanism. This keeps the Python transaction
-flow readable. Each request gets a fresh session and completes its transaction
-before returning a success response; no session is shared between threads.
+run through FastAPI's worker thread mechanism. Each request gets a fresh session
+and completes its transaction before returning a success response; no session
+is shared between threads.
 See [FastAPI dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/)
 and [SQLAlchemy transaction contexts](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html).
 
 Bookings are free, with one seat per booking and integer capacities including
 zero. Cancellation is allowed at any time. Scheduling, expiry and waitlists are
 not implemented. Workshop dates and cancellation deadlines remain deferred; the UI
-uses existing title/capacity fields without inventing a schedule.
+uses title/capacity fields.
 Registration validates email syntax and normalizes ASCII/IDNA email addresses;
 email ownership and deliverability are not verified yet. `.test` addresses are
 accepted for isolated local exercises, with DNS checks disabled.
 
 ## Authentication and browser contract
 
-Milestone 2 replaces `X-User-ID` with PostgreSQL-backed opaque sessions.
+Authentication uses PostgreSQL-backed opaque sessions.
 Registration creates regular users and requires 12–128 password characters,
 without trimming the password. Argon2id uses random salts and explicit
 argon2-cffi parameters: 64 MiB memory, three iterations and four lanes. Successful
@@ -46,7 +46,7 @@ for loopback HTTP, using `labpass_session`. Configuration rejects insecure
 cookies on a non-loopback host. The public Origin must be explicitly configured,
 with HTTPS when Secure is enabled. An ALB may terminate HTTPS before private
 HTTP traffic reaches the application; cookie policy does not inspect or trust
-forwarded client headers. Cookie APIs were checked against
+forwarded client headers. See
 [Starlette responses](https://starlette.dev/responses/).
 
 Every write requires an exact matching `Origin`, including login and registration.
@@ -55,14 +55,14 @@ Cross-site Fetch Metadata is rejected. Authenticated writes additionally require
 a fixed purpose string, and compared with `compare_digest`. Login and
 `GET /api/auth/me` return this CSRF token so a page reload can restore it; the raw
 session token is never in JSON. The frontend keeps the CSRF value in
-memory and use same-origin requests. See
+memory and uses same-origin requests. See
 [OWASP CSRF defenses](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 and [Python HMAC](https://docs.python.org/3.14/library/hmac.html).
 No permissive CORS policy is enabled. API responses include `Cache-Control: no-store`.
 
 ## Frontend and local routing
 
-Milestone 3 uses React/TypeScript/Vite and a static production build, served by a
+React/TypeScript/Vite provides a static production build, served by a
 non-root Nginx container. Only the web container publishes the loopback port;
 `/api/*` passes to the internal FastAPI service without path or Origin rewriting,
 caching or upstream retries. Existing API clients and Swagger URLs keep working.
@@ -146,10 +146,9 @@ See [PostgreSQL partial unique indexes](https://www.postgresql.org/docs/18/index
 
 The inventory counter and booking rows must be changed through the transactional
 service. Bounds checks cannot enforce equality between a counter and rows in a
-different table. Direct SQL that bypasses the service can corrupt that equality;
-production will separate migration/admin privileges from the runtime DB role.
-Tests assert counter/count agreement after races and rollback, and the planned
-operations milestone will add reconciliation checks and alerts.
+different table. Direct SQL that bypasses the service can corrupt that equality.
+Tests assert counter/count agreement after races and rollback. Restricted runtime
+DB roles and reconciliation monitoring remain pending.
 
 Booking creation persists the reservation, booking, `(user, key)` record with
 canonical request payload, and one `booking.confirmed.v1` outbox event in a single
@@ -167,7 +166,8 @@ on `active -> cancelled`, so retries cannot release a second seat. Capacity
 updates acquire the same workshop lock and reject a value below reservations.
 Lock and SQL timeouts bound database waits. The pool limits each API process's
 connections; throughput for a single popular workshop is deliberately serialized.
-The 100-user database test is a correctness test, not an HTTP throughput benchmark.
+The 100-user database test verifies correctness under contention. API throughput
+has not been measured.
 
 Alembic owns schema changes. The frozen initial migration does not import live
 ORM definitions. Its downgrade removes data and is tested only in an isolated
@@ -222,7 +222,7 @@ reservation was received and directs the recipient to current booking status.
 Email failure never undoes a booking. SMTP/SES acceptance followed by failure to
 record success leaves an ambiguous result: retry can send a duplicate email,
 while suppressing retry can lose one if the send failed. Exactly-once email
-delivery is not promised, even with a stable Message-ID or fenced DB updates.
+delivery is not guaranteed by a stable Message-ID or fenced DB updates.
 
 `process_sqs_batch` tests the partial-failure response shape. Milestone 4B adds the
 Lambda entry point and cloud relay/SQS/SES adapters, Secrets Manager refresh and
@@ -234,13 +234,11 @@ roles, private connectivity and deployment remain pending. See the
 [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
-No DynamoDB seat-availability store is planned. Adding it now would create a
-second inventory view that can lag or conflict with PostgreSQL. A future
-requirement for durable consumer delivery claims could justify DynamoDB for that
-nonrelational state, with PostgreSQL still owning seats. Current delivery claims
-also live in PostgreSQL; no DynamoDB table exists.
+PostgreSQL owns inventory and delivery claims. A separate inventory store would
+introduce consistency requirements between two data stores. No DynamoDB table
+is implemented.
 
-## AWS target: later milestone
+## AWS target architecture
 
 ```mermaid
 flowchart LR
@@ -255,7 +253,7 @@ flowchart LR
     Relay --> SQS[SQS plus DLQ] --> Lambda[Lambda consumer] --> SES[SES]
 ```
 
-This is a target design, not deployed infrastructure. Planned paths:
+Application workloads remain pending. Target routing and access:
 
 - Route 53 points the domain to CloudFront. Private S3 uses the REST origin,
   blocked public access, and an OAC bucket policy limited to the distribution;
@@ -317,5 +315,5 @@ data can make an image rollback insufficient and require a forward fix or restor
 
 CloudWatch work will cover booking latency/errors, healthy ALB targets, database
 connections, outbox backlog, SQS age/DLQ depth and Lambda failures. Backup restore
-instructions and an actual restore exercise are required before claiming
-recoverability. None of these delivery or recovery paths are verified yet.
+instructions and a restoration exercise remain pending. Cloud deployment and
+recovery have not been verified.

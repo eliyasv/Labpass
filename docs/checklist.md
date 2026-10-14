@@ -1,14 +1,8 @@
 # Project checklist
 
-Updated 14 October 2026 (Asia/Kolkata). Milestones 1–3 and the local part of
-Milestone 4 are complete, with Milestone 4B cloud worker code verified offline.
-AWS email deployment remains pending.
-Evidence and remaining limits are recorded in [milestone-1.md](milestone-1.md)
-and [milestone-2.md](milestone-2.md), with frontend evidence in
-[milestone-3.md](milestone-3.md).
-Local background processing is recorded in [milestone-4.md](milestone-4.md).
-Cloud worker evidence is in [milestone-4b.md](milestone-4b.md).
-Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
+Updated 14 October 2026. Local application and background processing are complete.
+Cloud workers and Terraform foundation are verified offline; AWS deployment
+remains pending. Verification records: [Technical documentation](README.md#verification-records).
 
 ## Milestone 1: local booking correctness
 
@@ -28,12 +22,11 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] Exact-version runtime and development dependency locks; compatibility check.
 - [x] Docker build, startup, health, non-root runtime, seed, HTTP smoke and shutdown.
 - [x] Structured request, booking and event IDs; sanitized database errors.
-- [x] Separate review of every changed file and affected flows; fixes rechecked.
-- [x] Local run and inspection instructions; verification services stopped with data retained.
+- [x] Local run and inspection instructions.
 
 ## Accepted decisions and limits
 
-- PostgreSQL owns seats and bookings. DynamoDB inventory is excluded without a new requirement.
+- PostgreSQL owns seats, bookings and delivery claims.
 - Lock order is user, workshop, booking; READ COMMITTED isolation and fresh request sessions.
 - Retry returns the original booking ID with its current status; cancellation does not reactivate it.
 - Idempotency records have no expiry yet; only successful requests retain keys.
@@ -59,7 +52,6 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] Additive migration, legacy preservation and case-conflict failure checks.
 - [x] Seed only a workshop; use generated credentials in the real HTTP smoke test.
 - [x] Readiness requires auth schema; validate Origin/port and local-only insecure configuration.
-- [x] Documentation and separate review; recheck affected tests and containers.
 - [x] Fix startup race: bounded smoke readiness polling, Compose health wait,
   nine regression tests and HTTP smoke immediately after API restart.
 
@@ -72,7 +64,7 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] Eight real-backend Chromium tests, input/error handling, and build checks.
 - [x] Use same-origin `/api` requests with cookie credentials and CSRF state in memory.
 - [x] Non-root web proxy, health ordering, preserved API smoke and desktop/mobile review.
-- [x] Separate review and regression checks for lost-response recovery and rebooking.
+- [x] Regression checks for lost-response recovery and rebooking.
 
 ## Milestone 4: background processing
 
@@ -91,7 +83,7 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] Actual queue redrive, duplicate capture smoke, queue/mail persistence after restart.
 - [x] Operator resets refuse sent deliveries/live leases; failure or expired-lease recovery tested.
 - [x] Suppress confirmations when cancellation is observed before sending; document the in-flight race.
-- [x] Document SES-success/recording-failure ambiguity; do not promise exactly-once email.
+- [x] Document duplicate-email risk after SES acceptance followed by completion failure.
 
 ## Milestone 5A: Terraform foundation
 
@@ -101,7 +93,7 @@ Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 - [x] ECR repositories with immutable tags and standard SQS/DLQ matching the worker contract.
 - [x] Required account ID, empty default security-group rules and Terraform artifact/state ignores.
 - [x] Pin and lock the AWS provider; formatting, validation and offline mock-provider tests.
-- [x] Review configuration and document foundation verification/integration requirements.
+- [x] Document foundation verification and integration requirements.
 - [ ] Configure DNS hosting/delegation and certificate validation.
 
 ## Remaining milestones 5–6: workloads, delivery and operations

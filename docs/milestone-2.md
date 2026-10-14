@@ -1,8 +1,6 @@
 # Milestone 2: authentication
 
-Implemented and verified on 13 October 2026. This report covers
-local authentication and its integration with inventory; it does not certify
-public deployment readiness.
+Local authentication and inventory integration verified on 13 October 2026.
 
 ## Implementation
 
@@ -14,8 +12,8 @@ an additional service. Public registration cannot create an administrator.
 A separate operator CLI creates a new admin with an interactively entered password.
 
 Writes require the configured Origin; authenticated writes also require a CSRF
-token. Login and `/api/auth/me` return the CSRF value so the upcoming frontend
-can restore its state after a reload. API responses are marked `no-store`.
+token. Login and `/api/auth/me` return the CSRF value for session restoration
+after a reload. API responses are marked `no-store`.
 The original booking transaction/lock order, idempotency keys, cancellation and
 outbox behavior remain in place, with authenticated user IDs supplied by sessions.
 
@@ -49,12 +47,6 @@ The initial migration and booking service were preserved.
 
 ## Review findings
 
-Reviewed every changed file and traced registration/conflicts, login/rehash,
-session rotation, booking ownership, admin checks, expiry/logout, failure before
-commit, migrations with legacy data, and container startup. Library APIs were
-checked against installed versions, official documentation and actual execution.
-Sources and design trade-offs are linked in [architecture.md](architecture.md).
-
 | Severity | Finding | Fix and verification |
 | --- | --- | --- |
 | Medium | Default request validation could include submitted passwords in error JSON | Removed submitted inputs/context from validation responses; SecretStr handles normal model representation; tests verify password absence in responses and logs |
@@ -65,10 +57,7 @@ Sources and design trade-offs are linked in [architecture.md](architecture.md).
 
 The CSRF derivation uses the standard-library HMAC API with a per-session secret,
 and comparisons use `compare_digest`. Argon2 work is bounded to two concurrent
-tasks per process. These controls do not replace attempt-rate throttling or make
-the application safe against every browser/credential attack. No unresolved
-finding blocks the documented local milestone; deployment hardening remains
-explicitly incomplete below.
+tasks per process. Credential-attempt throttling remains unimplemented.
 
 ## Verification
 
@@ -80,7 +69,7 @@ FastAPI 0.143.0, SQLAlchemy 2.0.54 and Alembic 1.20.0 were used.
 | --- | --- |
 | `pip-compile --strip-extras` for runtime, `--allow-unsafe` for dev, then locked pip installation | Resolution and installation completed successfully |
 | Schema/app import probe using installed packages | Registration schema normalized a `.test` email; app routes constructed successfully |
-| Final `bash scripts/test-local.sh -q` after configuration and migration-failure checks | **63 passed in 3.21s**, no warnings; temporary PostgreSQL server stopped |
+| `bash scripts/test-local.sh -q` | **63 passed in 3.21s**, no warnings; temporary PostgreSQL server stopped |
 | `ruff check backend scripts/smoke-local.py`; `ruff format --check` | All checks passed; 23 Python files formatted |
 | Host and container `python -m pip check` | No broken requirements found |
 | `bash -n scripts/test-local.sh` | Exit 0 |
@@ -97,7 +86,7 @@ tested the actual container HTTP port. The native suite creates randomly named
 schemas on a temporary real PostgreSQL server. Its 100-worker test still requires
 all 100 live requests to overlap as observed database lock waiters and verifies
 20 bookings for 20 seats. Authentication tests exercise actual Argon2 hashing and
-real database sessions; no SQLite or mock transaction store was substituted.
+real PostgreSQL sessions.
 
 Additional tests verify salted hashes and rehashing, generic credential errors,
 null-password account denial, concurrent/case-only registration conflicts,
@@ -126,19 +115,18 @@ inject pre-commit exceptions while the transactions themselves use PostgreSQL.
   terminal; CLI imports/options and the real-DB provisioning function were tested.
 - Local DB superuser use, mutable base image tags, artifact hashes, AWS network
   paths, CI/CD, email processing, k6 measurements and restore verification remain
-  outstanding. No AWS deployment or paid provisioning ran.
+  outstanding. AWS deployment was not tested.
 
 ## Run and inspect locally
 
-Follow the current [README](../README.md) to rebuild/start your local stack,
-seed its workshop, register/login in Swagger, pass the CSRF header and create an
-operator admin. `docker compose up --build --wait --wait-timeout 120` applies
-the code and migrations and waits for API health. Legacy fixture accounts cannot
+Startup, workshop seeding and administrator provisioning: [README](../README.md).
+Registration, login and CSRF headers: [Development](development.md#api-requests-and-booking-retries).
+`docker compose up --build --wait --wait-timeout 120` applies the code and migrations and waits for API health. Legacy fixture accounts cannot
 log in; credential activation is not implemented. API inspection uses
 `/api/auth/me`, `/api/bookings`, and Swagger; avoid printing password hashes or
 session cookies into logs. Native checks run with `bash scripts/test-local.sh -q`.
 
-## Startup race follow-up
+## Startup readiness
 
 An immediate readiness request after container startup could fail with
 `ConnectionResetError`, because Compose's "Started" status can precede
@@ -154,17 +142,12 @@ and booking mutations retain their original request behavior. Startup uses
 Verification: `pytest -q scripts/tests` passed **9 tests** covering transient
 failures, bounded deadlines, unexpected status/payload handling and HTTP error
 propagation/response closure. `ruff check backend scripts` and
-`ruff format --check backend scripts` passed (24 files). A separate review checked
-the retry scope, exception ordering (`HTTPError` before `URLError`), response
-closure, deadline calculations and docs against the executable commands.
+`ruff format --check backend scripts` passed (24 files).
 
 On the local stack, `docker restart labpass-api-1` immediately
 followed by the full HTTP smoke passed registration through logout. Compose
 `up --wait --wait-timeout 60` also succeeded with the one-shot migration service:
-DB/API healthy and migration exited 0. Backend code/schema did not change;
-the earlier 63-test PostgreSQL
-suite was not rerun for this script/documentation fix.
+DB/API healthy and migration exited 0. The startup-readiness verification covered
+the smoke script; the 63-test backend result belongs to the authentication stage.
 
-Next: React/TypeScript/Vite frontend for registration/login, workshop availability,
-booking/history/cancellation and admin management, using the documented cookie
-and CSRF contract, followed by frontend/backend agreement checks and browser smoke tests.
+Frontend integration: [Milestone 3](milestone-3.md).

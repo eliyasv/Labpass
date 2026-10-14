@@ -35,8 +35,7 @@ and [NAT availability](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gate
 Separate ECR repositories hold API/relay and Lambda images. Configuration enables
 immutable tags, AES256 encryption and scan-on-push. Releases will reference image
 digests rather than mutable tags. `force_delete=true` currently permits repository
-removal when images are present; artifact retention must be reviewed before
-using the configuration for a persistent environment.
+removal when images are present. Artifact retention policy remains pending.
 
 ## Confirmation queues
 

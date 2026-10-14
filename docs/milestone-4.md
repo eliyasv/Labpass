@@ -1,11 +1,11 @@
 # Milestone 4: local background confirmations
 
-Local portion completed 14 October 2026, with work/verification
-spanning 13–14 October. AWS deployment and internet email delivery are pending.
+Local queue/email integration verified on 13–14 October 2026.
+AWS deployment and internet email delivery remain pending.
 
 ## Implementation
 
-Bookings now lead to asynchronous local confirmation emails through a real
+Bookings produce asynchronous local confirmation emails through a real
 SQS-compatible ElasticMQ queue and Mailpit SMTP capture. The existing booking
 transaction still commits inventory, booking, idempotency record and event
 together. A separate relay publishes due events; a separate consumer claims,
@@ -29,9 +29,8 @@ inspection/recovery commands. Live leases and sent deliveries cannot be reset.
 
 Cancellation observed before the send claim suppresses the email. Cancellation
 during sending can still produce a historical reservation email, whose wording
-directs the recipient to current booking status. This race is intentional and
-documented; no inventory lock is held across SMTP. Email acceptance followed by
-a crash/DB failure can resend after recovery. Exactly-once email is not promised.
+directs the recipient to current booking status. No inventory lock is held across
+SMTP. Email acceptance followed by a crash/DB failure can resend after recovery.
 
 Local runtime configuration rejects real AWS endpoints/external SMTP. The SDK
 uses explicit dummy credentials, a required local endpoint and disabled SDK
@@ -71,10 +70,6 @@ Frontend code and its API snapshot/types were unchanged and still match OpenAPI.
 
 ## Review findings
 
-Reviewed every changed module/configuration and the model/migration agreement;
-traced booking commit → relay → queue → claim → SMTP → completion → acknowledgement,
-plus cancellation, duplicate redelivery, poison events and operator reset flows.
-
 | Severity | Finding | Resolution/evidence |
 | --- | --- | --- |
 | High | A short requeue delay could exhaust receives while a post-send failure still held a live lease | Unknown/busy failures retain 120-second visibility, beyond the 90-second lease; regression checks the retry delay |
@@ -86,12 +81,8 @@ plus cancellation, duplicate redelivery, poison events and operator reset flows.
 | Verification | Mailpit's `total` is the whole mailbox, not matching search results | Corrected smoke to use `messages_count`; repeated/default stack capture checks pass with multiple existing emails |
 | Operations | Queue/mail data could disappear after restart once outbox publication was committed | Enabled retained storage; actual queue/Mailpit restart retained a DLQ record and three captured confirmations |
 
-The review also checked lock order/isolation, rollback boundaries, retries after
-lost acknowledgements, schema nullability/constraints, sanitized logs, sender
-header safety, local-only endpoints, signals, non-root workers, image contexts,
-health dependencies and absence of CORS/API contract changes. Fencing protects
-DB state; it cannot revoke an already-running SMTP send. An expired slow sender
-can still overlap a new sender, which is part of the duplicate-email limitation.
+Fencing protects DB state; it cannot revoke an already-running SMTP send.
+An expired slow sender can overlap a new sender and produce duplicate email.
 
 ## Verification
 
@@ -99,29 +90,29 @@ can still overlap a new sender, which is part of the duplicate-email limitation.
 | --- | --- |
 | Official docs/installed API and dependency inspection | Verified queue configuration, boto3 methods, Mailpit search fields and Lambda response contract |
 | Runtime/dev `pip-compile`, then locked installation | boto3/botocore 1.43.112 installed with pinned dependencies; existing package versions retained |
-| Final `bash scripts/test-local.sh -q` | **93 passed in 3.66s**, no warnings; temporary server stopped, files retained |
+| `bash scripts/test-local.sh -q` | **93 passed in 3.66s**, no warnings; temporary server stopped, files retained |
 | Focused SDK tests | 3 passed; parameters verified using botocore Stubber and shared-file isolation verified under overridden AWS env, without network/AWS calls |
 | `ruff check backend scripts`; `ruff format --check backend scripts` | All checks passed; 36 files formatted |
 | Host `python -m pip check` | No broken requirements found |
 | Existing startup regression suite | 9 passed in 0.08s |
 | OpenAPI export `--check`; frontend `npm run check-contract` | Existing snapshot/generated types still match |
 | Isolated Compose `up --build --wait --wait-timeout 120`, API 8003/mail 8026 | Migration exited 0; API/web/relay/consumer/mail healthy; local SQS operations succeed |
-| First captured-email smoke | Real booking published, sent and captured once |
-| Corrected expanded smoke on isolated stack | Publication, SMTP capture and duplicate suppression passed |
+| Captured-email smoke | Real booking published, sent and captured once |
+| Publication/duplicate smoke on isolated stack | Publication, SMTP capture and duplicate suppression passed |
 | Isolated opt-in poison check | Poison message reached configured DLQ after bounded receives; retained for inspection |
 | Restart isolated queue and Mailpit, recheck persistence | One DLQ poison record and three captured confirmations survived restart |
 | Default Compose rebuild/start, seed and background smoke | Applied `0003` to retained DB; real email capture and duplicate suppression passed on default stack |
 | Existing HTTP smoke on default stack | Register/login/me/booking/retry/history/cancel/logout passed |
 | Default `alembic check`; consumer `id`; background `status` | No schema drift; UID/GID 10001; pending/failed outbox counts 0, sent 1 and skipped 4 at inspection |
-| Default rebuild/smoke after final SDK isolation, status and container `pip check` | Capture/duplicate check passed again; pending/failed 0, sent 2, skipped 4; no broken requirements |
+| Default SDK isolation smoke, status and container `pip check` | Capture/duplicate check passed again; pending/failed 0, sent 2, skipped 4; no broken requirements |
 | Isolated verification Compose `stop`, then default `ps -a` | Test services stopped; volumes retained; default API/web/mail/relay/consumer remain healthy |
 
 Concurrency/failure tests use actual PostgreSQL transactions and thread overlap.
 External queue/mail acceptance is injected in focused crash tests; the end-to-end
-smokes use actual ElasticMQ and Mailpit. A barrier inside two publication calls
+smokes use ElasticMQ and Mailpit. A barrier inside two publication calls
 requires both relay transactions to reach publication while holding different
 real locks. Competing consumers overlap an actual committed claim with an
-in-flight sender. No SQLite/database mock replaces booking or delivery tests.
+in-flight sender.
 
 ## Untested behavior and remaining scope
 
@@ -174,9 +165,8 @@ LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 docker compose \
 This deliberately inserts a poison record and can take about a minute. It stays
 in the test DLQ. Run it only in an isolated project, not as routine production health.
 
-## Next implementation step
+## AWS integration
 
-Prepare AWS-specific SQS/SES adapters and a Lambda entry point around the tested
-delivery core, including partial-batch event-source configuration, secret loading,
-restricted DB credentials and private connectivity. Then define Terraform with
-scoped IAM, private connectivity, verified TLS and availability requirements.
+Cloud adapters and Lambda packaging: [Milestone 4B](milestone-4b.md).
+Runtime configuration, IAM, TLS and event-source requirements: [AWS workers](aws-workers.md).
+Terraform resources: [Infrastructure](infrastructure.md).

@@ -1,9 +1,7 @@
 # Development and local operations
 
-Use the [README](../README.md#run-locally) to start the complete application with
-Docker Compose. This guide covers development outside the containers, API usage,
-checks and background-worker recovery. Run commands from the repository root
-unless a section changes directories.
+Compose startup: [README](../README.md#run-locally).
+Run commands from the repository root unless a section changes directories.
 
 ## Configuration
 
@@ -42,9 +40,8 @@ python -m labpass.seed
 uvicorn labpass.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-The native API does not serve the frontend. Use Swagger for API requests, or
-start the Vite development server with the matching Origin described below.
-Local queue/email workers are easiest to run through Compose.
+The native backend serves the API and Swagger. The Vite development server
+provides the frontend; Compose provides local queue/email workers.
 
 ## Backend checks
 
@@ -77,7 +74,7 @@ connections plus server headroom.
 
 ## Frontend development
 
-Use Node.js 20.19+ in the 20.x line, or 22.12+. From the repository root:
+Requires Node.js 20.19+ in the 20.x line, or 22.12+.
 
 ```bash
 npm --prefix frontend ci
@@ -217,9 +214,9 @@ permissions and the offline Lambda smoke are in [AWS workers](aws-workers.md).
 
 ## Dependency updates
 
-Python locks pin versions for CPython 3.14 on Linux; they do not yet include
-artifact hashes. Local container base tags are mutable. The npm lock includes
-package integrity hashes. Review dependency updates and rerun affected checks:
+Python locks pin versions for CPython 3.14 on Linux without artifact hashes.
+Local container base tags are mutable. The npm lock includes package integrity
+hashes. Update locks, install dependencies and run the affected checks:
 
 ```bash
 .venv/bin/pip-compile --upgrade --strip-extras -o backend/requirements.lock backend/requirements.in
@@ -227,6 +224,5 @@ package integrity hashes. Review dependency updates and rerun affected checks:
 .venv/bin/python -m pip install -r backend/requirements.lock -r backend/requirements-dev.lock
 ```
 
-Cloud delivery will deploy immutable application image digests. Schema changes
-are controlled by Alembic; review migration/data rollback limits in the
-[architecture guide](architecture.md) before changing stored data.
+Alembic controls schema changes. Migration and data rollback limits are documented
+in the [architecture guide](architecture.md#authentication-transaction-and-migration-limits).

@@ -1,8 +1,7 @@
 # AWS worker contract for Terraform
 
-Milestone 4B implements cloud worker code and verifies it offline. This is a
-deployment contract for Milestone 5, not provisioned infrastructure. Local Compose
-continues to use ElasticMQ and Mailpit without any AWS credentials.
+Cloud worker code and packaging are verified offline. AWS workload deployment
+remains pending. Local Compose uses ElasticMQ and Mailpit without AWS credentials.
 
 ## Entry points and configuration
 
@@ -11,16 +10,15 @@ handler `labpass.lambda_handler.lambda_handler`. The official
 [Python 3.14 Lambda image](https://docs.aws.amazon.com/lambda/latest/dg/python-image.html)
 includes the runtime interface client/emulator. The image installs the project's
 existing Python lock into `/var/task` so the tested SDK overrides the bundled SDK.
-Only x86_64 has been built/tested. Publish and deploy an immutable image digest
-for deployment; local base tags and Python artifact hashes still need
-delivery hardening.
+Only x86_64 has been built/tested. Deployment requires an immutable image digest.
+Local base tags are mutable; Python locks lack artifact hashes.
 
 Relay: use the backend image with command `python -m labpass.aws_relay`.
 `--once` processes at most five due outbox events and returns a failure exit code
 if processing raises. `--validate` checks configuration and the CA file without
 creating SDK clients or contacting AWS. SIGTERM/SIGINT finish the current batch
-then dispose the pool. Process health alone is insufficient: backlog/last-success
-monitoring and service supervision belong in Terraform/operations work.
+then dispose the pool. Backlog/last-success monitoring and service supervision
+remain pending.
 
 Required non-secret runtime settings:
 
@@ -61,13 +59,13 @@ AWS SDK clients use the normal credential provider chain, supplied by execution
 roles in deployment, with no code-defined keys. Environment/shared configuration
 endpoint overrides are ignored. Connect/read timeouts are 2/5 seconds; SDK retry
 count is one total attempt, leaving retry accounting to PostgreSQL and SQS.
-Only explicit cloud mode can use real AWS endpoints. Never run the cloud relay
-locally with personal AWS credentials to test the adapters. See
+Only explicit cloud mode can use real AWS endpoints. Offline adapter tests use
+stubbed SDK responses and require no AWS credentials. See
 [Boto3 role credentials](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html).
 
 ## SQS, Lambda and email settings
 
-Initial Terraform settings to encode and validate:
+Required workload configuration:
 
 | Setting | Value / reason |
 | --- | --- |
@@ -101,15 +99,15 @@ SES uses `sesv2.send_email` with a single recipient and plain UTF-8 subject/body
 A nonempty `MessageId` records service acceptance, not mailbox delivery.
 Rejection/unknown acceptance retains a retryable delivery; cancelled bookings
 observed before claiming are skipped. SES acceptance followed by DB completion
-failure can send a duplicate after lease expiry. There is no exactly-once promise.
+failure can send a duplicate after lease expiry.
 See [SES SendEmail](https://docs.aws.amazon.com/boto3/latest/reference/services/sesv2/client/send_email.html).
 Identity/DKIM verification, sandbox recipient restrictions, quotas, bounce and
 complaint handling remain required deployment/operations work.
 
 ## IAM and database access plan
 
-Terraform must use actual resource ARNs from its resources and outputs. No
-example ARN is passed into an executable deployment path.
+Policies require resource ARNs from Terraform resources and outputs.
+IAM policies and database grants remain pending.
 
 | Principal | Minimum intended permissions |
 | --- | --- |
@@ -126,7 +124,6 @@ See [SES IAM conditions](https://docs.aws.amazon.com/ses/latest/dg/control-user-
 [Lambda SQS permissions](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html),
 [encrypted SQS permissions](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html)
 and [Lambda VPC permissions](https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html).
-This table is a scoped plan; actual policies/grants are not installed or tested yet.
 
 ## Private connectivity and release order
 
@@ -144,8 +141,7 @@ and [SES endpoints](https://docs.aws.amazon.com/ses/latest/dg/send-email-set-up-
 
 EC2 also needs explicit ECR API/DKR and S3 layer retrieval, SSM, logs and bootstrap
 paths. Lambda image retrieval is performed by the Lambda service with appropriate
-ECR repository permissions, rather than by this Python handler. The Terraform
-foundation provides a zonal NAT and an S3 gateway endpoint; workload-specific
+ECR repository permissions. The Terraform foundation provides a zonal NAT and an S3 gateway endpoint; workload-specific
 permissions, database resources and availability configuration remain pending.
 
 Planned release: OIDC-authenticated CI builds and tests immutable images; a
@@ -171,13 +167,13 @@ docker exec labpass-m4b-lambda-verification python -m pip check
 docker stop labpass-m4b-lambda-verification
 ```
 
-Expected `Lambda offline smoke passed` and `No broken requirements found`.
+Expected output: `Lambda offline smoke passed` and `No broken requirements found`.
 The smoke checks direct handler behavior and actual runtime-emulator invocations,
 using only container loopback. Empty batches succeed; missing cloud configuration
-or insufficient invocation time returns retryable IDs. This verifies packaging/failure
-behavior, not AWS integration. The suite uses real PostgreSQL and boto3 Stubber
+or insufficient invocation time returns retryable IDs. AWS integration remains
+unverified. The suite uses real PostgreSQL and boto3 Stubber
 with SDK network requests forbidden. Test-only resource identifiers are fictional.
 
-The verification container is retained after stopping. For another run use
-`docker start labpass-m4b-lambda-verification` if its image is unchanged, or choose
-a fresh verification name after rebuilding; do not reuse a running old image.
+The container is retained after stopping. Restart the same image with
+`docker start labpass-m4b-lambda-verification`. After rebuilding, use a fresh
+container name to test the new image.

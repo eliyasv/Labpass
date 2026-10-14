@@ -2,18 +2,21 @@
 
 ## Changes and verification
 
-Use short, specific commits describing one coherent change. Include required
-schema/configuration, tests, dependency locks and documentation. Prefer
-`feat(scope): ...`, `fix(scope): ...`, `test(scope): ...` and `docs: ...` titles.
-Use a separate fix commit when review or verification finds an issue. Keep the
-report/checklist current and state any remaining verification limits.
+Commit format: `feat(scope): ...`, `fix(scope): ...`, `test(scope): ...` or
+`docs: ...`. Each commit contains one coherent change with its required schema,
+configuration, tests, dependency locks and documentation.
 
-Before committing, inspect the selected files and staged diff, verify that no
-secrets/artifacts entered the index, and run checks appropriate to the change.
-Backend changes need the real PostgreSQL suite; frontend changes need
-type/build/contract checks and affected browser flows. Terraform changes need
-formatting, validation and infrastructure tests. Database transaction tests use
-real PostgreSQL; AWS adapter and infrastructure tests use mocks for offline checks.
+| Changed component | Checks |
+| --- | --- |
+| Backend | Real PostgreSQL suite and Python lint/format checks |
+| Frontend | Type, build and contract checks; affected browser flows |
+| Terraform | Formatting, validation and infrastructure tests |
+
+Commands: [Development](development.md) and [Terraform](../infra/README.md#offline-checks).
+Database transaction tests use real PostgreSQL. AWS adapter and infrastructure
+tests use mocks for offline checks.
+
+Inspect changed and staged files for secrets, generated artifacts and whitespace errors:
 
 ```bash
 git status --short
@@ -23,13 +26,17 @@ git diff --cached --check
 git log --oneline --decorate
 ```
 
+## Tracked and excluded files
+
 Both Python lockfiles, `frontend/package-lock.json`, the exported OpenAPI schema
 and generated TypeScript declarations belong in Git. `.env`, dotenv variants,
 AWS credential folders, private keys, virtual environments, dependency installs,
 builds, browser results and local data artifacts are excluded. `.env.example`
-contains only development example values and is tracked. Pattern checks help
-detect accidental secrets but do not prove their absence.
+contains only development example values and is tracked.
 
 The Terraform provider lockfile also belongs in Git. Terraform state, saved plans,
-local variable files and provider installations are excluded. Current development
-targets `dev`; GitHub Actions and branch protection remain pending.
+local variable files and provider installations are excluded.
+
+## Branch and automation
+
+Development branch: `dev`. GitHub Actions and branch protection remain pending.

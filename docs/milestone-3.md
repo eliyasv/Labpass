@@ -1,11 +1,10 @@
 # Milestone 3: local React frontend
 
-Completed 13 October 2026. This milestone connects the existing
-booking API to a working browser UI. No AWS infrastructure was provisioned.
+Local frontend and API integration verified on 13 October 2026.
 
 ## Implementation
 
-React/TypeScript/Vite now provides registration, login/logout, session restoration,
+React/TypeScript/Vite provides registration, login/logout, session restoration,
 workshop browsing/search, live-on-refresh availability, reservations, booking
 history, confirmed cancellation, and admin workshop creation/capacity management.
 The responsive UI uses actual server data and existing title/capacity fields;
@@ -25,7 +24,7 @@ attempt. A new reservation gets a new key. Auth changes clear previous history
 and invalidate stale fetch results. Requests time out after 15 seconds; the client
 and Nginx do not automatically retry mutations.
 
-Official references used: [Vite requirements](https://vite.dev/guide/),
+References: [Vite requirements](https://vite.dev/guide/),
 [Vite proxy configuration](https://vite.dev/config/server-options),
 [React effect cleanup](https://react.dev/reference/react/useEffect),
 [OpenAPI TypeScript generation](https://openapi-ts.dev/node),
@@ -55,10 +54,6 @@ Backend application code, schema/migrations and existing tests were unchanged.
 
 ## Review findings
 
-Reviewed the changed source/configuration, generated contract and lock agreement,
-then traced register/login/reload, reserve/retry/cancel/rebook, logout, role
-visibility, capacity changes and proxy forwarding end to end.
-
 | Severity | Finding | Fix and evidence |
 | --- | --- | --- |
 | High | Publishing UI on a different origin would conflict with the existing cookie/Origin contract | Serve UI/API through the same loopback web port; real browser writes, wrong-Origin rejection and legacy HTTP smoke passed |
@@ -67,12 +62,6 @@ visibility, capacity changes and proxy forwarding end to end.
 | Medium | Delayed session/data fetches could overwrite newer account state | Abort/ignore stale effect results and invalidate data updates on identity changes; session restoration and account switching exercised |
 | Medium | Nginx could retain an obsolete API container address after recreation | Resolve the upstream via Docker DNS with a 10-second cache; startup/forwarding verified, forced IP-change recovery not injected |
 | Build | Latest TypeScript 7 conflicted with the generator's declared TypeScript 5 peer range | Pin TypeScript 5.9.3; install, dependency inspection, contract generation and strict compile passed without peer overrides |
-
-Additional checks covered password/CSRF storage, request metadata, role enforcement
-on the server, escaped workshop titles, input bounds, no permissive CORS,
-non-root Nginx/pid/temp permissions, health dependencies, URI/Origin preservation,
-API no-store headers and safe Docker contexts. Generated schemas/types are
-checked against the actual application contract. No database migration was needed.
 
 ## Verification
 
@@ -100,8 +89,8 @@ history page; it does not replace PostgreSQL or simulate transaction concurrency
 Tests cover cookie flags/HttpOnly visibility, CSRF and wrong-Origin denial,
 regular-user admin denial, full inventory, capacity rejection below reservations,
 safe HTML-like title rendering, session reload, cancellation/rebooking and logout.
-The prior 63-test native backend suite was not rerun: backend/schema code is
-unchanged; new integration evidence is the real browser and existing HTTP smoke.
+Backend verification: [Milestone 2](milestone-2.md). This stage verified browser
+integration and the HTTP smoke; it did not rerun the native backend suite.
 
 ## Untested behavior and remaining risks
 
@@ -125,7 +114,7 @@ unchanged; new integration evidence is the real browser and existing HTTP smoke.
   was not tested; the production Nginx path was tested instead.
 - Login throttling, email verification/recovery, scheduled session cleanup,
   restricted DB roles, immutable base image digests, delivery/operations work
-  and actual confirmation emails remain outstanding. No production-readiness claim.
+  and actual confirmation emails remain outstanding at this stage.
 
 ## Run and inspect locally
 
@@ -145,10 +134,8 @@ docker compose logs api web migrate
 Only the web container publishes port 8000. Existing `/api/*` and `/docs` URLs
 remain usable.
 
-## Next implementation step
+## Background integration
 
-Implement the transactional outbox relay and duplicate-safe confirmation
-processing. Start with local publication/consumer failure tests, competing relay
-instances, stable event IDs and delivery claims. Then prepare AWS SQS/Lambda/SES
-integration. Email failure must not reverse bookings; document the SES-success /
-recording-failure window without promising exactly-once delivery.
+Transactional outbox publication, delivery claims and local queue/email processing
+are covered in [Milestone 4](milestone-4.md). AWS worker preparation is covered in
+[Milestone 4B](milestone-4b.md).
