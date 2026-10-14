@@ -21,3 +21,11 @@ artifacts/
 node_modules/
 test-results/
 playwright-report/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log

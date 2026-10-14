@@ -286,8 +286,12 @@ This is a target design, not deployed infrastructure. Planned paths:
   [Systems Manager endpoint requirements](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html).
   Bootstrap/package retrieval also needs network access or a prepared AMI.
 
-Connectivity and availability selection is deferred until the infrastructure
-milestone, with region-specific pricing checked then. Options to compare first:
+The temporary demo targets `us-east-1`, the owned domain `labpass.shop` and a
+$10 total budget. Its Terraform foundation uses one zonal NAT plus an S3 gateway
+endpoint, with two application AZs and isolated database subnets. The planned
+demo database is Single-AZ; DNS hosting and final workload settings remain to
+be confirmed. Cost estimates and teardown requirements are in the
+[demo plan](demo-plan.md). Availability options for a longer-lived deployment:
 
 | Option | Cost implications | Availability and operations |
 | --- | --- | --- |
@@ -299,7 +303,12 @@ milestone, with region-specific pricing checked then. Options to compare first:
 
 See [AWS NAT designs](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html)
 and [RDS Multi-AZ DB instances](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html).
-No NAT, endpoints, or Multi-AZ option has been selected or provisioned.
+The selected one-NAT demo design has a shared egress failure point and possible
+cross-AZ charges. Regional NAT also exists and is billed per active AZ; its
+automatic expansion is unnecessary for this fixed temporary footprint. See
+[regional NAT](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html).
+No cloud resources have been provisioned. Multi-AZ database failover remains a
+separate availability choice rather than a guarantee of this demonstration.
 
 GitHub Actions will authenticate with AWS using OIDC constrained to the repository
 and deployment environment. Releases will deploy ECR digests, run one migration

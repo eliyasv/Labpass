@@ -134,6 +134,7 @@ backend/       FastAPI app, migrations, workers, tests and container images
 frontend/      React app, generated API types and browser tests
 local/         Local queue configuration
 scripts/       Database test runner, smoke checks and OpenAPI export
+infra/         Terraform networking, image repositories and queues
 compose.yaml   Local application stack
 docs/          Architecture, development guides and verification reports
 ```
@@ -141,12 +142,13 @@ docs/          Architecture, development guides and verification reports
 ## Project status
 
 The local application and confirmation pipeline are implemented. Cloud worker
-adapters and Lambda packaging are tested offline. AWS infrastructure and
-deployment, the GitHub Actions pipeline, load testing and operational monitoring
-are the next steps.
+adapters and Lambda packaging are tested offline. Terraform foundations cover
+networking, image repositories and queues. The remaining AWS workloads and
+deployment, GitHub Actions, load testing and monitoring are the next steps.
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
 - [AWS worker configuration](docs/aws-workers.md)
+- [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)
 - [Verification reports](docs/milestone-4b.md)

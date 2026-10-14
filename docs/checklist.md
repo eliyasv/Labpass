@@ -8,6 +8,7 @@ and [milestone-2.md](milestone-2.md), with frontend evidence in
 [milestone-3.md](milestone-3.md).
 Local background processing is recorded in [milestone-4.md](milestone-4.md).
 Cloud worker evidence is in [milestone-4b.md](milestone-4b.md).
+Terraform foundation evidence is in [milestone-5a.md](milestone-5a.md).
 
 ## Milestone 1: local booking correctness
 
@@ -98,16 +99,25 @@ Cloud worker evidence is in [milestone-4b.md](milestone-4b.md).
 - [x] Suppress confirmations when cancellation is observed before sending; document the in-flight race.
 - [x] Document SES-success/recording-failure ambiguity; do not promise exactly-once email.
 
-## Milestones 5–6: infrastructure, delivery and operations
+## Milestone 5A: Terraform foundation
 
-- [ ] Confirm AWS region, domain and budget before selecting network/availability options.
-- [ ] Compare current NAT/endpoints/RDS Multi-AZ costs and failure paths.
+- [x] Confirm `us-east-1`, owned domain `labpass.shop` and $10 total for a temporary demo.
+- [x] Compare egress/database choices and estimate a short demo, without assuming free credits.
+- [x] Two-AZ public/application/isolated-database subnets, one zonal NAT and an S3 gateway endpoint.
+- [x] ECR repositories with immutable tags and standard SQS/DLQ matching the worker contract.
+- [x] Required account ID, empty default security-group rules and Terraform artifact/state ignores.
+- [x] Pin and lock the AWS provider; formatting, validation and offline mock-provider tests.
+- [x] Separate code review, demo cost/cleanup plan and foundation instructions.
+- [ ] Confirm DNS hosting/delegation and actual demo duration before workload deployment.
+
+## Remaining milestones 5–6: workloads, delivery and operations
+
 - [ ] Terraform for private S3/OAC, CloudFront API forwarding/no cache and TLS.
 - [ ] ALB, two-AZ private EC2 ASG, ECR retrieval and explicit private egress/bootstrap paths.
 - [ ] RDS engine availability/version, private network, restricted DB roles and verified TLS.
 - [ ] Roles, runtime Secrets Manager retrieval, SSM and scoped GitHub OIDC trust.
 - [ ] Distributed login/registration abuse controls, email verification/recovery and session cleanup.
-- [ ] Terraform formatting/validation and provider locks; IAM/network review.
+- [ ] Extend Terraform validation/tests and IAM/network review to the complete workload stack.
 - [ ] GitHub Actions CI, immutable image digests, single migrations, release ordering and smoke tests.
 - [ ] k6 tests with real overlap and measured results; capacity/pool tuning.
 - [ ] CloudWatch latency/errors, targets, DB connections, outbox, queue age/DLQ and Lambda alarms.
