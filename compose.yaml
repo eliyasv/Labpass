@@ -1,0 +1,115 @@
+name: labpass
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: labpass
+      POSTGRES_USER: labpass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labpass -d labpass"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    environment: &api_environment
+      # A libpq password environment variable avoids URL-encoding password characters.
+      DATABASE_URL: postgresql+psycopg://labpass@db:5432/labpass
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      APP_ORIGIN: http://127.0.0.1:${LABPASS_PORT:-8000}
+      LABPASS_COOKIE_SECURE: "false"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    build: ./backend
+    environment: *api_environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${LABPASS_PORT:-8000}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  queue:
+    image: softwaremill/elasticmq-native:1.7.1
+    volumes:
+      - ./local/elasticmq.conf:/opt/elasticmq.conf:ro
+      - queue_data:/data
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_QUIET: "true"
+    ports:
+      - "127.0.0.1:${LABPASS_MAIL_PORT:-8025}:8025"
+    volumes:
+      - mail_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8025/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  relay:
+    build: ./backend
+    environment: &background_environment
+      <<: *api_environment
+      LABPASS_QUEUE_ENDPOINT: http://queue:9324
+      LABPASS_SMTP_HOST: mailpit
+    command: ["python", "-m", "labpass.background", "relay"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      queue:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-m", "labpass.background", "health", "--role", "relay"]
+      interval: 15s
+      timeout: 12s
+      retries: 5
+      start_period: 10s
+  consumer:
+    build: ./backend
+    environment: *background_environment
+    command: ["python", "-m", "labpass.background", "consumer"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      queue:
+        condition: service_started
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "labpass.background", "health", "--role", "consumer"]
+      interval: 15s
+      timeout: 12s
+      retries: 5
+      start_period: 10s
+volumes:
+  postgres_data:
+  queue_data:
+  mail_data:
