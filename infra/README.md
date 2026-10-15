@@ -19,6 +19,8 @@ Terraform root: `foundation/`. Region: `us-east-1`.
 | IAM | Component-specific secret reads, bootstrap secret writes, relay/consumer SQS scopes and EC2 profiles |
 | Optional hosting | HTTPS ALB; private API/relay ASGs; bootstrap/migration launch templates |
 | Host access/logging | SSM, ECR pulls and component CloudWatch log groups with seven-day retention |
+| Optional confirmation worker | Private Lambda image/version/alias, disabled-by-default SQS mapping, bounded concurrency and scoped SES/log/ENI/image access |
+| Email identity | SES domain, 2048-bit DKIM CNAMEs, default configuration set, suppression and CloudWatch delivery metrics |
 
 ## Requirements
 
@@ -48,9 +50,12 @@ Tests use a mocked AWS provider and require no AWS credentials.
 | `database_engine_version` | `18.6` | Exact PostgreSQL 18 minor version; target-region orderability check |
 | `database_deletion_protection` | `true` | RDS deletion protection; final snapshot remains enabled |
 | `application` | `null` | Hosting configuration; requires AMI, image digest, HTTPS origin and certificate ARN |
+| `confirmation_worker` | `null` | Lambda image digest, email domain/sender and public zone ID; concurrency defaults to 2 and polling to disabled |
 
 Hosting desired capacities default to zero for controlled database setup. See
 [application inputs](../docs/application-hosting.md#configuration).
+Confirmation configuration and activation:
+[Confirmation worker deployment](../docs/confirmation-worker.md).
 
 ## Outputs
 
@@ -62,6 +67,7 @@ Hosting desired capacities default to zero for controlled database setup. See
 | `database` | Endpoint, master/role-secret ARNs and database security group |
 | `runtime_access` | Workload security groups, IAM role ARNs and EC2 profile names |
 | `application_hosting` | ALB/target group, ASG names, template ID/versions and log groups; null when disabled |
+| `confirmation_worker` | Function/version/alias, mapping state, log group, SES verification and DKIM metadata; null when disabled |
 
 ## State
 
@@ -73,10 +79,12 @@ Password values are created by RDS and the SDK bootstrap, outside Terraform.
 ## Integration status
 
 Frontend hosting, DNS/ACM provisioning, distribution-specific origin validation,
-Lambda mapping/SES/VPC permissions, release workflows and alarms remain pending.
-EC2 bootstrap, database access and ALB TLS/health have not been verified in AWS.
+release workflows and alarms remain pending. EC2 bootstrap, database access,
+ALB TLS/health, Lambda/SQS permissions, SES verification/delivery and alias
+updates have not been verified in AWS.
 
 [Infrastructure design](../docs/infrastructure.md) ·
 [Database runtime](../docs/database-runtime.md) ·
 [Application hosting](../docs/application-hosting.md) ·
+[Confirmation worker](../docs/confirmation-worker.md) ·
 [Verification](../docs/milestone-5c.md)

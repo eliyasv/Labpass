@@ -1,8 +1,9 @@
 # Project checklist
 
 Updated 15 October 2026. Local application and background processing are complete.
-Cloud workers, database access and application-hosting configuration are verified offline; AWS deployment
-remains pending. Verification records: [Technical documentation](README.md#verification-records).
+Cloud workers, database access, application hosting and confirmation-workload
+configuration are verified offline; AWS deployment remains pending.
+Verification records: [Technical documentation](README.md#verification-records).
 
 ## Milestone 1: local booking correctness
 
@@ -120,12 +121,24 @@ remains pending. Verification records: [Technical documentation](README.md#verif
 - [x] Mocked hosting tests, host-helper failure checks, rendered startup and container validation.
 - [ ] Verify deployed EC2 startup, permissions, ALB health/TLS and refresh behaviour.
 
+## Milestone 5E: confirmation workload deployment
+
+- [x] Optional digest-pinned x86_64 Lambda, numeric published version and stable alias.
+- [x] Consumer-role private RDS connectivity and metadata-only runtime environment.
+- [x] Exact-sender SES permissions, scoped log writes and function-restricted ECR image retrieval.
+- [x] Lambda service ENI access with conditional function-code denial.
+- [x] Disabled-by-default SQS mapping, batch/window/visibility contract and shared concurrency limit.
+- [x] SES domain, 2048-bit Easy DKIM and three CNAMEs in an existing public hosted zone.
+- [x] Configuration-set suppression and delivery/bounce/complaint metrics.
+- [x] SES/DKIM activation guards and offline Terraform coverage.
+- [ ] Verify deployed image retrieval, VPC/IAM, SES sandbox/quotas/delivery, alias updates and SQS retries/DLQ.
+
 ## Remaining milestones 5–6: workloads, delivery and operations
 
 - [ ] Terraform for private S3/OAC, CloudFront API forwarding/no cache and TLS.
 - [ ] Origin DNS/ACM and distribution-specific ALB access validation.
 - [ ] Verify deployed RDS engine/class availability, private reachability and TLS.
-- [ ] SES and Lambda VPC/logging permissions; scoped GitHub OIDC trust.
+- [ ] Scoped GitHub OIDC trust and release permissions.
 - [ ] Distributed login/registration abuse controls, email verification/recovery and session cleanup.
 - [ ] Extend Terraform validation/tests and IAM/network review to the complete workload stack.
 - [ ] GitHub Actions CI, immutable image digests, single migrations, release ordering and smoke tests.
