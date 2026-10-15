@@ -1,0 +1,20 @@
+[Unit]
+Description=LabPass %i container
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/sbin/labpass-service %i pull
+ExecStartPre=-/usr/local/sbin/labpass-service %i stop
+ExecStart=/usr/local/sbin/labpass-service %i run
+ExecStop=/usr/local/sbin/labpass-service %i stop
+Restart=always
+RestartSec=10
+TimeoutStartSec=300
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

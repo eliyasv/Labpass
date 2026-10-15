@@ -231,7 +231,7 @@ RDS TLS configuration. The Lambda consumer uses 120-second delivery leases,
 source ARN validation, time admission checks and per-record failure responses.
 Real PostgreSQL plus stubbed SDK responses verify transactions; the official
 runtime emulator verifies offline packaging. Actual mapping (`ReportBatchItemFailures`),
-compute integration, deployed permissions and AWS verification remain pending. See the
+deployed permissions and AWS verification remain pending. See the
 [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
@@ -254,7 +254,7 @@ flowchart LR
     Relay --> SQS[SQS plus DLQ] --> Lambda[Lambda consumer] --> SES[SES]
 ```
 
-Application workloads remain pending. Target routing and access:
+AWS deployment remains pending. Target routing and access:
 
 - Route 53 points the domain to CloudFront. Private S3 uses the REST origin,
   blocked public access, and an OAC bucket policy limited to the distribution;
@@ -291,7 +291,8 @@ RDS configuration is Single-AZ PostgreSQL with encrypted storage and managed
 master credentials. Runtime services load separate restricted-role secrets. See
 [Database runtime](database-runtime.md) and
 [infrastructure design](infrastructure.md) for the current network boundaries
-and integration status. Availability and egress trade-offs:
+and [application hosting](application-hosting.md) for ALB/EC2 configuration.
+Availability and egress trade-offs:
 
 | Option | Cost implications | Availability and operations |
 | --- | --- | --- |

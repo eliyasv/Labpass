@@ -119,7 +119,11 @@ class AwsRuntime:
         self._username = username
         self._engine_factory = engine_factory
         self._secret_client = client_factory("secretsmanager", settings)
-        self.sender = SesSender(client_factory("sesv2", settings), settings.sender_email)
+        self.sender = (
+            SesSender(client_factory("sesv2", settings), settings.sender_email)
+            if settings.sender_email is not None
+            else None
+        )
         self.publisher = SqsQueue(client_factory("sqs", settings), settings.queue_url)
         self._engine = self._sessions = None
         self._expires_at = 0
@@ -151,5 +155,8 @@ class AwsRuntime:
 
     def close(self):
         self._discard_pool()
-        for client in (self._secret_client, self.sender.client, self.publisher.client):
+        clients = [self._secret_client, self.publisher.client]
+        if self.sender is not None:
+            clients.append(self.sender.client)
+        for client in clients:
             client.close()

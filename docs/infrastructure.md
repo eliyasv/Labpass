@@ -1,7 +1,7 @@
 # Infrastructure design
 
-Terraform defines networking, repositories, queues, private RDS and runtime
-access in `us-east-1`. AWS resources have not been provisioned.
+Terraform defines networking, repositories, queues, private RDS, runtime access
+and optional application hosting in `us-east-1`. AWS resources have not been provisioned.
 
 ## Network boundaries
 
@@ -17,7 +17,8 @@ target account. Each zone has separate public, application and database subnets.
 Automatic public IP assignment is disabled on all subnets. The default security
 group has no ingress or egress rules. Separate API, relay, consumer, migration
 and bootstrap groups permit PostgreSQL access to the database group and HTTPS
-egress. Application ingress rules remain pending with compute integration.
+egress. When hosting is enabled, the API accepts port 8000 only from the ALB
+group; the ALB accepts HTTPS only from CloudFront origin-facing addresses.
 
 The NAT gateway resides in the first public subnet. Both application zones use
 it, creating a shared egress dependency and potential cross-AZ transfer costs.
@@ -80,12 +81,16 @@ for privileges, configuration and commands.
 
 ## Verification and remaining integration
 
-Formatting and provider-schema validation passed. Seven mocked Terraform tests
+Formatting and provider-schema validation passed. Fourteen mocked Terraform tests
 verify topology, routing isolation, default-group rules, repository settings,
-queue/database configuration, scoped secret access and invalid configuration.
+queue/database configuration, hosting, scoped runtime access and invalid configuration.
 Actual AWS connectivity, authorization and TLS handshakes remain unverified.
 
-ALB/EC2, SSM, CloudFront/S3/OAC, DNS/ACM, Lambda/SES deployment permissions,
-deployment workflows and monitoring remain to be integrated.
+Hosting uses separate API/relay ASGs and explicit operator launch templates with
+SSM, ECR and CloudWatch logging access. Configuration and limits:
+[Application hosting](application-hosting.md).
+
+CloudFront/S3/OAC, DNS/ACM, distribution-specific origin validation,
+Lambda/SES deployment permissions, workflows and alarms remain to be integrated.
 See [Terraform commands](../infra/README.md) and
-[database/access verification](milestone-5b.md).
+[hosting verification](milestone-5c.md).

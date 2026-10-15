@@ -29,7 +29,7 @@ retrying a successful request with the same key returns the original booking.
 | Database | PostgreSQL 18 |
 | Local environment | Docker Compose, ElasticMQ, Mailpit |
 | Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
-| Infrastructure | Terraform: VPC, ECR, SQS, RDS, IAM and Secrets Manager |
+| Infrastructure | Terraform: VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
 | Planned delivery and load testing | GitHub Actions with AWS OIDC, k6 |
 
 ## Run locally
@@ -144,14 +144,15 @@ docs/          Architecture, development guides and verification reports
 
 The local application and confirmation pipeline are implemented. Cloud worker
 adapters, API secret loading and Lambda packaging are tested offline. Terraform
-defines networking, image repositories, queues, private RDS and scoped runtime
-access. AWS deployment, compute/frontend integration, GitHub Actions, load testing
-and monitoring remain pending.
+defines networking, image repositories, queues, private RDS, scoped runtime access
+and optional API/relay hosting behind an HTTPS ALB. AWS deployment, frontend
+integration, GitHub Actions, load testing and alarms remain pending.
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
 - [AWS worker configuration](docs/aws-workers.md)
 - [Database runtime](docs/database-runtime.md)
+- [Application hosting](docs/application-hosting.md)
 - [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)
 - [Technical documentation and verification](docs/README.md)

@@ -21,7 +21,7 @@ def main():
     for signum in (signal.SIGTERM, signal.SIGINT):
         signal.signal(signum, lambda *_: stopped.set())
     try:
-        settings = AwsSettings.from_env()
+        settings = AwsSettings.from_env(require_sender=False)
         if args.validate:
             print("AWS worker configuration is valid; no AWS calls made")
             return 0
