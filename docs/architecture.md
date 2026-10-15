@@ -254,7 +254,8 @@ flowchart LR
     Relay --> SQS[SQS plus DLQ] --> Lambda[Lambda consumer] --> SES[SES]
 ```
 
-AWS deployment remains pending. Target routing and access:
+Terraform defines frontend and application routing; AWS deployment remains
+pending. Routing and access:
 
 - Route 53 points the domain to CloudFront. Private S3 uses the REST origin,
   blocked public access, and an OAC bucket policy limited to the distribution;
@@ -267,14 +268,16 @@ AWS deployment remains pending. Target routing and access:
 - ACM viewer certificate is in `us-east-1`; the ALB certificate is in the workload
   region and matches its origin hostname. See
   [CloudFront TLS certificate requirements](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html).
-- An internet-facing ALB can live in public subnets, restricted to CloudFront
+- The internet-facing ALB lives in public subnets, restricted to CloudFront
   origin traffic plus an origin validation header. Backend instances have no
   public IPs; their security group accepts the application port only from the
   ALB group. RDS permits PostgreSQL only from runtime and controlled migration
   security groups. No public DB endpoint or SSH access is planned.
 - Instance roles obtain ECR pull credentials and retrieve only the needed
-  Secrets Manager secret at runtime. Secrets never appear in user data, images,
-  Terraform plaintext inputs/state, frontend bundles or logs. RDS uses verified
+  Secrets Manager secret at runtime. Database passwords are absent from user data,
+  images, Terraform inputs/state, frontend bundles and logs. The CloudFront/ALB
+  origin token is a sensitive Terraform input stored in state and service
+  configuration; state and configuration access must be restricted. RDS uses verified
   TLS and separate restricted runtime and migration database roles. Instances
   use Systems Manager for operations instead of inbound SSH.
 - Private instances require a deliberate outbound path for ECR API, image
@@ -292,6 +295,8 @@ master credentials. Runtime services load separate restricted-role secrets. See
 [Database runtime](database-runtime.md) and
 [infrastructure design](infrastructure.md) for the current network boundaries
 and [application hosting](application-hosting.md) for ALB/EC2 configuration.
+Private S3, CloudFront policies, existing-zone DNS integration, certificates and
+publication commands: [Frontend delivery](frontend-delivery.md).
 Availability and egress trade-offs:
 
 | Option | Cost implications | Availability and operations |

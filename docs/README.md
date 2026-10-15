@@ -7,6 +7,7 @@
 | [AWS workers](aws-workers.md) | Runtime configuration, secret retrieval, TLS, IAM scopes and Lambda/SQS contracts |
 | [Database runtime](database-runtime.md) | RDS configuration, role privileges, API credentials, bootstrap and migrations |
 | [Application hosting](application-hosting.md) | ALB/EC2, instance roles, service supervision, operator jobs and logs |
+| [Frontend delivery](frontend-delivery.md) | Private S3, CloudFront routing, DNS/TLS, origin restrictions and frontend publication |
 | [Development](development.md) | Local setup, API requests, test commands and worker recovery |
 | [Terraform](../infra/README.md) | Provider versions, offline checks and state/account configuration |
 | [Project checklist](checklist.md) | Completed implementation and remaining deployment work |
@@ -26,3 +27,4 @@ of the suite at that stage. AWS deployment and recovery remain unverified.
 | [Terraform foundation](milestone-5a.md) | Provider-schema validation and 4 mocked infrastructure tests |
 | [Database and runtime access](milestone-5b.md) | 178 backend tests, 9 smoke regressions, 7 mocked Terraform tests and container verification |
 | [Application hosting](milestone-5c.md) | 180 backend tests, 27 script tests, 14 mocked Terraform tests, rendered startup/unit checks and offline container verification |
+| [Frontend delivery](milestone-5d.md) | 28 mocked Terraform tests, frontend contract/build checks and 27 script regressions |
