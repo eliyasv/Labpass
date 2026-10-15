@@ -102,7 +102,8 @@ role-secret ARNs are rejected.
 
 Secrets Manager and PostgreSQL have separate commits. A failed bootstrap can
 leave initialized secrets or committed roles; it does not indicate readiness.
-Bootstrap host provisioning remains pending.
+Operator launch templates and host commands are documented in
+[Application hosting](application-hosting.md#bootstrap-and-migration-jobs).
 
 For subsequent migrations, use the migration IAM role and set
 `LABPASS_DB_SECRET_ARN` to its secret:

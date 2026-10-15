@@ -31,7 +31,7 @@ Required non-secret runtime settings:
 | `LABPASS_DB_HOST` | Actual RDS hostname in the selected region; no URL, CNAME, localhost or query parameters |
 | `LABPASS_DB_NAME` | Database identifier |
 | `LABPASS_DB_CA_FILE` | Absolute readable PEM CA bundle path; Lambda defaults to `/var/task/certs/rds-global-bundle.pem`; relay uses `/app/certs/rds-global-bundle.pem` |
-| `LABPASS_SES_FROM` | Normalized email address belonging to the verified SES identity |
+| `LABPASS_SES_FROM` | Required by Lambda; normalized address belonging to the verified SES identity. Relay does not require it |
 | `LABPASS_DB_PORT` | Optional, default `5432` |
 
 Do not supply a database URL/password in cloud environment variables. The worker
@@ -108,9 +108,9 @@ complaint handling remain required deployment/operations work.
 
 Policies require resource ARNs from Terraform resources and outputs.
 Terraform defines role-specific secret access and source-queue permissions.
-Database bootstrap installs the table grants. SES, logging, ECR/SSM and Lambda
-VPC permissions remain pending with workload integration. See
-[Database runtime](database-runtime.md).
+Database bootstrap installs the table grants. Optional EC2 hosting adds ECR,
+SSM and component log access. Lambda SES/logging/VPC permissions remain pending.
+See [Database runtime](database-runtime.md) and [Application hosting](application-hosting.md).
 
 | Principal | Minimum intended permissions |
 | --- | --- |
@@ -145,7 +145,8 @@ and [SES endpoints](https://docs.aws.amazon.com/ses/latest/dg/send-email-set-up-
 EC2 also needs explicit ECR API/DKR and S3 layer retrieval, SSM, logs and bootstrap
 paths. Lambda image retrieval is performed by the Lambda service with appropriate
 ECR repository permissions. Terraform defines a zonal NAT, an S3 gateway endpoint
-and Single-AZ RDS. Compute integration and remaining workload permissions are pending.
+and Single-AZ RDS. EC2 launch templates use these paths for SDK calls, package
+installation and ECR retrieval. AWS network/permission checks remain unverified.
 
 Planned release: OIDC-authenticated CI builds and tests immutable images; a
 controlled job runs additive migrations once; configure roles/secrets/TLS;

@@ -405,11 +405,43 @@ def test_empty_batch_has_no_runtime_or_network_dependency(monkeypatch):
 
 
 def test_relay_validate_does_not_construct_runtime(settings, monkeypatch, capsys):
-    monkeypatch.setattr(aws_relay.AwsSettings, "from_env", lambda: settings)
+    monkeypatch.setattr(aws_relay.AwsSettings, "from_env", lambda **_: settings)
     monkeypatch.setattr(aws_relay, "AwsRuntime", lambda _: pytest.fail("must not initialize"))
     monkeypatch.setattr("sys.argv", ["aws_relay", "--validate"])
     assert aws_relay.main() == 0
     assert "no AWS calls made" in capsys.readouterr().out
+
+
+def test_relay_configuration_has_no_ses_dependency(settings, monkeypatch):
+    for name, value in {
+        "LABPASS_AWS_ENABLED": "true",
+        "AWS_REGION": settings.region,
+        "LABPASS_QUEUE_ARN": settings.queue_arn,
+        "LABPASS_DB_SECRET_ARN": settings.db_secret_arn,
+        "LABPASS_DB_HOST": settings.db_host,
+        "LABPASS_DB_NAME": settings.db_name,
+        "LABPASS_DB_CA_FILE": settings.db_ca_file,
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("LABPASS_SES_FROM", raising=False)
+    assert AwsSettings.from_env(require_sender=False).sender_email is None
+    with pytest.raises(AwsRuntimeError, match="missing_aws_configuration"):
+        AwsSettings.from_env()
+
+
+def test_relay_runtime_does_not_create_ses_client(settings, clients):
+    created = []
+
+    def factory(name, _):
+        created.append(name)
+        return clients[name]
+
+    runtime = AwsRuntime(replace(settings, sender_email=None), client_factory=factory)
+    try:
+        assert runtime.sender is None
+        assert created == ["secretsmanager", "sqs"]
+    finally:
+        runtime.close()
 
 
 def test_ses_acceptance_followed_by_failed_db_commit_retains_claim(

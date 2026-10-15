@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+systemctl enable --now amazon-ssm-agent
+dnf install -y docker
+systemctl enable --now docker
+command -v aws >/dev/null
+install -d -m 0700 /etc/labpass/${component}
+printf '%s' '${environment_base64}' | base64 -d > /etc/labpass/${component}/runtime.env
+printf '%s\n' '${image}' > /etc/labpass/${component}/image
+printf '%s\n' '${region}' > /etc/labpass/${component}/region
+printf '%s\n' '${log_group}' > /etc/labpass/${component}/log-group
+
+cat > /usr/local/sbin/labpass-service <<'LABPASS_SCRIPT'
+${service_script}
+LABPASS_SCRIPT
+chmod 0700 /usr/local/sbin/labpass-service
+
+cat > /etc/systemd/system/labpass@.service <<'LABPASS_UNIT'
+${service_unit}
+LABPASS_UNIT
+systemctl daemon-reload
+%{ if component == "api" || component == "relay" ~}
+systemctl enable --now labpass@${component}.service
+%{ endif ~}

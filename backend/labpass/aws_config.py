@@ -20,7 +20,7 @@ class AwsSettings:
     db_secret_arn: str
     db_host: str
     db_name: str
-    sender_email: str
+    sender_email: str | None
     db_ca_file: str
     db_port: int = 5432
 
@@ -48,14 +48,15 @@ class AwsSettings:
             raise AwsRuntimeError("invalid_database_name")
         if type(self.db_port) is not int or not 1 <= self.db_port <= 65535:
             raise AwsRuntimeError("invalid_database_port")
-        try:
-            normalized = validate_email(
-                self.sender_email, check_deliverability=False, allow_smtputf8=False
-            ).ascii_email.lower()
-        except EmailNotValidError:
-            raise AwsRuntimeError("invalid_ses_sender") from None
-        if normalized != self.sender_email:
-            raise AwsRuntimeError("invalid_ses_sender")
+        if self.sender_email is not None:
+            try:
+                normalized = validate_email(
+                    self.sender_email, check_deliverability=False, allow_smtputf8=False
+                ).ascii_email.lower()
+            except EmailNotValidError:
+                raise AwsRuntimeError("invalid_ses_sender") from None
+            if normalized != self.sender_email:
+                raise AwsRuntimeError("invalid_ses_sender")
         try:
             if not Path(self.db_ca_file).is_absolute():
                 raise ValueError
@@ -69,7 +70,7 @@ class AwsSettings:
         return f"https://sqs.{region}.amazonaws.com/{account}/{name}"
 
     @classmethod
-    def from_env(cls):
+    def from_env(cls, *, require_sender=True):
         if os.environ.get("LABPASS_AWS_ENABLED") != "true":
             raise AwsRuntimeError("aws_runtime_not_enabled")
         names = {
@@ -78,12 +79,15 @@ class AwsSettings:
             "db_secret_arn": "LABPASS_DB_SECRET_ARN",
             "db_host": "LABPASS_DB_HOST",
             "db_name": "LABPASS_DB_NAME",
-            "sender_email": "LABPASS_SES_FROM",
             "db_ca_file": "LABPASS_DB_CA_FILE",
         }
+        if require_sender:
+            names["sender_email"] = "LABPASS_SES_FROM"
         values = {field: os.environ.get(name, "") for field, name in names.items()}
         if not all(values.values()):
             raise AwsRuntimeError("missing_aws_configuration")
+        if not require_sender:
+            values["sender_email"] = None
         try:
             port = int(os.environ.get("LABPASS_DB_PORT", "5432"))
         except ValueError:

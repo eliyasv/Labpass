@@ -17,6 +17,8 @@ Terraform root: `foundation/`. Region: `us-east-1`.
 | Database access | PostgreSQL ingress from API/relay/consumer/migration/bootstrap groups |
 | Secrets | RDS-managed master password; four role-secret containers |
 | IAM | Component-specific secret reads, bootstrap secret writes, relay/consumer SQS scopes and EC2 profiles |
+| Optional hosting | HTTPS ALB; private API/relay ASGs; bootstrap/migration launch templates |
+| Host access/logging | SSM, ECR pulls and component CloudWatch log groups with seven-day retention |
 
 ## Requirements
 
@@ -45,6 +47,10 @@ Tests use a mocked AWS provider and require no AWS credentials.
 | `name_prefix` | `labpass-demo` | Resource name prefix |
 | `database_engine_version` | `18.6` | Exact PostgreSQL 18 minor version; target-region orderability check |
 | `database_deletion_protection` | `true` | RDS deletion protection; final snapshot remains enabled |
+| `application` | `null` | Hosting configuration; requires AMI, image digest, HTTPS origin and certificate ARN |
+
+Hosting desired capacities default to zero for controlled database setup. See
+[application inputs](../docs/application-hosting.md#configuration).
 
 ## Outputs
 
@@ -55,6 +61,7 @@ Tests use a mocked AWS provider and require no AWS credentials.
 | `confirmation_queue` | Source queue ARN/URL and DLQ ARN |
 | `database` | Endpoint, master/role-secret ARNs and database security group |
 | `runtime_access` | Workload security groups, IAM role ARNs and EC2 profile names |
+| `application_hosting` | ALB/target group, ASG names, template ID/versions and log groups; null when disabled |
 
 ## State
 
@@ -65,10 +72,11 @@ Password values are created by RDS and the SDK bootstrap, outside Terraform.
 
 ## Integration status
 
-Compute, frontend hosting, DNS/TLS certificates, Lambda mapping, SES permissions,
-VPC attachment permissions, ECR/SSM/logging policies and monitoring remain pending.
-Database bootstrap and deployed access/TLS checks have not run in AWS.
+Frontend hosting, DNS/ACM provisioning, distribution-specific origin validation,
+Lambda mapping/SES/VPC permissions, release workflows and alarms remain pending.
+EC2 bootstrap, database access and ALB TLS/health have not been verified in AWS.
 
 [Infrastructure design](../docs/infrastructure.md) ·
 [Database runtime](../docs/database-runtime.md) ·
-[Verification](../docs/milestone-5b.md)
+[Application hosting](../docs/application-hosting.md) ·
+[Verification](../docs/milestone-5c.md)

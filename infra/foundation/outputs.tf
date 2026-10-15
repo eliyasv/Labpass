@@ -43,3 +43,19 @@ output "runtime_access" {
     instance_profiles  = { for name, profile in aws_iam_instance_profile.runtime : name => profile.name }
   }
 }
+
+output "application_hosting" {
+  description = "ALB, groups and launch templates; operator templates do not launch hosts automatically."
+  value = local.hosting_enabled ? {
+    alb_dns_name     = aws_lb.api[0].dns_name
+    alb_zone_id      = aws_lb.api[0].zone_id
+    api_target_group = aws_lb_target_group.api[0].arn
+    api_asg_name     = aws_autoscaling_group.api[0].name
+    relay_asg_name   = aws_autoscaling_group.relay[0].name
+    launch_templates = { for name, template in aws_launch_template.runtime : name => {
+      id      = template.id
+      version = template.latest_version
+    } }
+    log_groups = { for name, group in aws_cloudwatch_log_group.runtime : name => group.name }
+  } : null
+}
