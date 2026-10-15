@@ -13,12 +13,14 @@ locals {
   frontend_arn = "arn:aws:s3:::${var.workload_name_prefix}-${var.aws_account_id}-frontend"
 }
 
+# Reuse an account's existing GitHub provider when supplied; otherwise create it once.
 resource "aws_iam_openid_connect_provider" "github" {
   count          = var.existing_oidc_provider_arn == null ? 1 : 0
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
 }
 
+# Each role trusts one repository/environment subject; GitHub enforces its dev-only rule.
 resource "aws_iam_role" "delivery" {
   for_each             = local.environments
   name                 = "${var.workload_name_prefix}-delivery-${each.key}"
@@ -37,6 +39,7 @@ resource "aws_iam_role" "delivery" {
   })
 }
 
+# ECR login requires wildcard scope; image uploads are limited to the two repositories.
 resource "aws_iam_role_policy" "publish" {
   role = aws_iam_role.delivery["publish"].id
   name = "publish-images"
@@ -83,6 +86,8 @@ resource "aws_iam_role_policy" "metadata" {
   })
 }
 
+# Plan reads state and writes plans; apply writes state and reads exact plan versions.
+# Both jobs need lock-object writes/deletes to acquire and release Terraform's S3 lock.
 resource "aws_iam_role_policy" "state" {
   for_each = toset(["plan", "apply"])
   role     = aws_iam_role.delivery[each.key].id
@@ -98,6 +103,8 @@ resource "aws_iam_role_policy" "state" {
   })
 }
 
+# Limit deployment writes to the existing fleets, worker, frontend and migration command.
+# Launch-template and migration permissions appear only when their resource IDs are supplied.
 resource "aws_iam_role_policy" "release" {
   role = aws_iam_role.delivery["apply"].id
   name = "existing-runtime-release"

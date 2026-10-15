@@ -1,16 +1,19 @@
 locals {
   application_components = toset(["api", "relay", "bootstrap", "migration"])
+  # Frontend owns origin TLS when enabled; standalone hosting supplies its certificate.
   listener_certificate_arn = var.application == null ? null : (
     var.frontend == null ? var.application.origin_certificate_arn : module.frontend.certificates["origin"]
   )
 }
 
+# Establish subnet boundaries used by every private workload.
 module "network" {
   source      = "../modules/network"
   name_prefix = var.name_prefix
   aws_region  = var.aws_region
 }
 
+# Own RDS, database credentials and the client identities used by application components.
 module "database" {
   source                       = "../modules/database"
   name_prefix                  = var.name_prefix
@@ -21,6 +24,7 @@ module "database" {
   queue_arn                    = aws_sqs_queue.confirmations.arn
 }
 
+# Connect the API/relay fleets and database operator hosts to shared services.
 module "application" {
   source         = "../modules/application"
   name_prefix    = var.name_prefix
@@ -39,6 +43,7 @@ module "application" {
   vpc_id                       = module.network.network.vpc_id
   public_subnet_ids            = module.network.network.public_subnet_ids
   application_subnet_ids       = module.network.network.application_subnet_ids
+  # Bootstrap needs master and role-secret references to create restricted database users.
   database = {
     host              = module.database.database.host
     name              = module.database.database.name
@@ -63,6 +68,7 @@ module "application" {
   queue_arn = aws_sqs_queue.confirmations.arn
 }
 
+# Route DNS through CloudFront to private S3 assets and the application's ALB origin.
 module "frontend" {
   source              = "../modules/frontend"
   name_prefix         = var.name_prefix
@@ -72,6 +78,7 @@ module "frontend" {
   alb_origin          = module.application.alb_origin
 }
 
+# Consume confirmations from SQS with only the consumer's database identity.
 module "confirmations" {
   source                     = "../modules/confirmations"
   name_prefix                = var.name_prefix

@@ -1,5 +1,6 @@
 FROM public.ecr.aws/lambda/python:3.14@sha256:27483b5d8a13e85d0f8207706759a30d6a7c89e60aa9d48ec926b445bdc518d2 AS aws-base
 
+# Update OS packages and install verified wheels; strip installers and the local emulator.
 FROM aws-base AS runtime
 ARG AL2023_RELEASE=2023.12.20261013
 COPY requirements.lock ${LAMBDA_TASK_ROOT}/requirements.lock
@@ -19,4 +20,5 @@ CMD ["labpass.lambda_handler.lambda_handler"]
 FROM runtime AS local
 COPY --from=aws-base /usr/local/bin/aws-lambda-rie /usr/local/bin/aws-lambda-rie
 
+# Default build target excludes the emulator restored by the local test target.
 FROM runtime AS release

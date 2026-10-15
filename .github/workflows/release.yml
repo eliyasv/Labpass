@@ -1,11 +1,13 @@
 name: Release
 
+# Manually release an existing foundation from the current dev commit.
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Serialize releases so plans, migrations and fleet refreshes cannot overlap.
 concurrency:
   group: labpass-release
   cancel-in-progress: false
@@ -23,6 +25,7 @@ env:
   TF_IN_AUTOMATION: 'true'
 
 jobs:
+  # Verify the commit and all three environments' reviewer/branch rules before AWS access.
   preflight:
     if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
@@ -38,12 +41,14 @@ jobs:
       - name: Check release commit and existing environment protections
         run: .venv/bin/python scripts/ci/release.py preflight
 
+  # Run CI here so image and frontend artifacts belong to this release run.
   verify:
     needs: preflight
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
+  # GitHub environment rules gate this job; OIDC supplies a separate publishing role.
   publish:
     needs: [preflight, verify]
     if: github.ref == 'refs/heads/dev'
@@ -61,6 +66,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/release-tools
+      # Reuse the images scanned by verify; rebuilding would invalidate that evidence.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: image-*
@@ -79,6 +85,8 @@ jobs:
           RELEASE_BUNDLE: ${{ runner.temp }}/release-images
         run: .venv/bin/python scripts/ci/release.py publish
 
+  # Permit only existing runtime updates and store the saved plan in private S3.
+  # Plans contain sensitive inputs; pass version IDs and a checksum through job outputs.
   plan:
     needs: publish
     if: github.ref == 'refs/heads/dev'
@@ -115,6 +123,8 @@ jobs:
           LAMBDA_DIGEST: ${{ needs.publish.outputs.lambda_digest }}
         run: .venv/bin/python scripts/ci/release.py plan
 
+  # After environment approval, verify the saved plan, migrate, roll out and check health.
+  # The apply role is acquired inside this job, after its protection rules pass.
   apply:
     needs: [publish, plan]
     if: github.ref == 'refs/heads/dev'

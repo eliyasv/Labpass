@@ -1,3 +1,5 @@
+# Accept only an image digest for a fixed migration job on the dedicated operator host.
+# A host-local flock prevents concurrent migrations, including runs outside GitHub.
 resource "aws_ssm_document" "migrate" {
   name          = "${var.workload_name_prefix}-release-migration"
   document_type = "Command"
