@@ -7,7 +7,7 @@ data "aws_rds_orderable_db_instance" "postgres" {
 
 resource "aws_db_subnet_group" "main" {
   name       = "${var.name_prefix}-database"
-  subnet_ids = [for subnet in aws_subnet.database : subnet.id]
+  subnet_ids = var.database_subnet_ids
 }
 
 resource "aws_db_parameter_group" "postgres" {
@@ -28,7 +28,7 @@ resource "aws_db_parameter_group" "postgres" {
 resource "aws_security_group" "database" {
   name        = "${var.name_prefix}-database"
   description = "PostgreSQL access from explicit workload groups"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = var.vpc_id
   egress      = []
 }
 
@@ -40,7 +40,7 @@ resource "aws_security_group" "database_client" {
   for_each    = local.database_clients
   name        = "${var.name_prefix}-${each.key}"
   description = "${each.key} private runtime access"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = var.vpc_id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "postgres" {

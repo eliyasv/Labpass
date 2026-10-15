@@ -54,7 +54,7 @@ resource "aws_iam_role_policy" "queue" {
     Statement = [{
       Effect   = "Allow"
       Action   = each.key == "relay" ? ["sqs:SendMessage"] : ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
-      Resource = aws_sqs_queue.confirmations.arn
+      Resource = var.queue_arn
     }]
   })
 }

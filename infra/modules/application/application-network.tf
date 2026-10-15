@@ -12,7 +12,7 @@ resource "aws_security_group" "alb" {
   count       = local.hosting_enabled ? 1 : 0
   name        = "${var.name_prefix}-alb"
   description = "HTTPS from CloudFront origin-facing addresses"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = var.vpc_id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "cloudfront_https" {
@@ -27,7 +27,7 @@ resource "aws_vpc_security_group_ingress_rule" "cloudfront_https" {
 resource "aws_vpc_security_group_egress_rule" "alb_api" {
   count                        = local.hosting_enabled ? 1 : 0
   security_group_id            = aws_security_group.alb[0].id
-  referenced_security_group_id = aws_security_group.database_client["api"].id
+  referenced_security_group_id = var.client_security_group_ids["api"]
   ip_protocol                  = "tcp"
   from_port                    = 8000
   to_port                      = 8000
@@ -35,7 +35,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_api" {
 
 resource "aws_vpc_security_group_ingress_rule" "api_alb" {
   count                        = local.hosting_enabled ? 1 : 0
-  security_group_id            = aws_security_group.database_client["api"].id
+  security_group_id            = var.client_security_group_ids["api"]
   referenced_security_group_id = aws_security_group.alb[0].id
   ip_protocol                  = "tcp"
   from_port                    = 8000
@@ -47,7 +47,7 @@ resource "aws_lb" "api" {
   name                       = substr("${var.name_prefix}-alb", 0, 32)
   internal                   = false
   load_balancer_type         = "application"
-  subnets                    = [for subnet in aws_subnet.public : subnet.id]
+  subnets                    = var.public_subnet_ids
   security_groups            = [aws_security_group.alb[0].id]
   drop_invalid_header_fields = true
   desync_mitigation_mode     = "strictest"
@@ -59,7 +59,7 @@ resource "aws_lb_target_group" "api" {
   port                 = 8000
   protocol             = "HTTP"
   target_type          = "instance"
-  vpc_id               = aws_vpc.main.id
+  vpc_id               = var.vpc_id
   deregistration_delay = 30
 
   health_check {
@@ -78,7 +78,14 @@ resource "aws_lb_listener" "api_https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = local.frontend_enabled ? aws_acm_certificate_validation.site["origin"].certificate_arn : var.application.origin_certificate_arn
+  certificate_arn   = var.listener_certificate_arn
+
+  lifecycle {
+    precondition {
+      condition     = can(regex("^arn:aws:acm:${var.aws_region}:${var.aws_account_id}:certificate/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.listener_certificate_arn))
+      error_message = "Enabled hosting requires a listener certificate in the configured account and region."
+    }
+  }
 
   default_action {
     type = "fixed-response"

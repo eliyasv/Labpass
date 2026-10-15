@@ -25,9 +25,3 @@ variable "confirmation_worker" {
     error_message = "Confirmation delivery requires a SHA-256 image digest, public zone ID, lowercase DNS domain and normalized sender in that domain. Sender local parts use alphanumeric groups separated by . _ + or -. Concurrency must be an integer from 2 to 10."
   }
 }
-
-locals {
-  confirmation_enabled      = var.confirmation_worker != null
-  confirmation_name         = "${var.name_prefix}-confirmations"
-  confirmation_function_arn = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${local.confirmation_name}"
-}

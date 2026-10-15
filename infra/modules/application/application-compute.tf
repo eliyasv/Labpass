@@ -25,25 +25,25 @@ data "aws_ami" "application" {
 }
 
 locals {
-  application_image = local.hosting_enabled ? "${aws_ecr_repository.application["api"].repository_url}@${var.application.image_digest}" : null
+  application_image = local.hosting_enabled ? "${var.api_repository.repository_url}@${var.application.image_digest}" : null
   runtime_environment = { for component in local.hosting_roles : component => merge({
     AWS_REGION            = var.aws_region
     LABPASS_AWS_ENABLED   = "true"
-    LABPASS_DB_HOST       = aws_db_instance.main.address
-    LABPASS_DB_NAME       = aws_db_instance.main.db_name
-    LABPASS_DB_PORT       = tostring(aws_db_instance.main.port)
+    LABPASS_DB_HOST       = var.database.host
+    LABPASS_DB_NAME       = var.database.name
+    LABPASS_DB_PORT       = tostring(var.database.port)
     LABPASS_DB_CA_FILE    = "/app/certs/rds-global-bundle.pem"
-    LABPASS_DB_SECRET_ARN = component == "bootstrap" ? aws_db_instance.main.master_user_secret[0].secret_arn : aws_secretsmanager_secret.database[component].arn
+    LABPASS_DB_SECRET_ARN = component == "bootstrap" ? var.database.master_secret_arn : var.database.secret_arns[component]
     }, component == "api" ? {
     APP_ORIGIN            = var.application.public_origin
     LABPASS_COOKIE_SECURE = "true"
     } : {}, component == "relay" ? {
-    LABPASS_QUEUE_ARN = aws_sqs_queue.confirmations.arn
+    LABPASS_QUEUE_ARN = var.queue_arn
     } : {}, component == "bootstrap" ? {
-    LABPASS_API_SECRET_ARN       = aws_secretsmanager_secret.database["api"].arn
-    LABPASS_RELAY_SECRET_ARN     = aws_secretsmanager_secret.database["relay"].arn
-    LABPASS_CONSUMER_SECRET_ARN  = aws_secretsmanager_secret.database["consumer"].arn
-    LABPASS_MIGRATION_SECRET_ARN = aws_secretsmanager_secret.database["migration"].arn
+    LABPASS_API_SECRET_ARN       = var.database.secret_arns["api"]
+    LABPASS_RELAY_SECRET_ARN     = var.database.secret_arns["relay"]
+    LABPASS_CONSUMER_SECRET_ARN  = var.database.secret_arns["consumer"]
+    LABPASS_MIGRATION_SECRET_ARN = var.database.secret_arns["migration"]
   } : {}) }
 
   application_user_data = { for component in local.hosting_roles : component => templatefile("${path.module}/templates/user-data.sh.tftpl", {
@@ -65,14 +65,14 @@ resource "aws_launch_template" "runtime" {
   user_data     = base64encode(local.application_user_data[each.key])
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.runtime[each.key].name
+    name = var.instance_profiles[each.key]
   }
 
   network_interfaces {
     device_index                = 0
     associate_public_ip_address = false
     delete_on_termination       = true
-    security_groups             = [aws_security_group.database_client[each.key].id]
+    security_groups             = [var.client_security_group_ids[each.key]]
   }
 
   metadata_options {
@@ -127,11 +127,6 @@ resource "aws_launch_template" "runtime" {
   depends_on = [
     aws_iam_role_policy.container_runtime,
     aws_iam_role_policy_attachment.ssm,
-    aws_iam_role_policy.database_secret,
-    aws_iam_role_policy.bootstrap_secrets,
-    aws_iam_role_policy.queue,
-    aws_route.application_egress,
-    aws_vpc_endpoint.s3,
   ]
 }
 
@@ -141,7 +136,7 @@ resource "aws_autoscaling_group" "api" {
   min_size                  = var.application.api_desired_capacity == 0 ? 0 : 2
   max_size                  = 4
   desired_capacity          = var.application.api_desired_capacity
-  vpc_zone_identifier       = [for subnet in aws_subnet.application : subnet.id]
+  vpc_zone_identifier       = var.application_subnet_ids
   target_group_arns         = [aws_lb_target_group.api[0].arn]
   health_check_type         = "ELB"
   health_check_grace_period = 600
@@ -172,7 +167,7 @@ resource "aws_autoscaling_group" "relay" {
   min_size                  = var.application.relay_desired_capacity == 0 ? 0 : 1
   max_size                  = 2
   desired_capacity          = var.application.relay_desired_capacity
-  vpc_zone_identifier       = [for subnet in aws_subnet.application : subnet.id]
+  vpc_zone_identifier       = var.application_subnet_ids
   health_check_type         = "EC2"
   health_check_grace_period = 300
   default_instance_warmup   = 120

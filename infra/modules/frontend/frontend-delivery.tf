@@ -159,5 +159,4 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
-  depends_on = [aws_lb_listener_rule.api]
 }

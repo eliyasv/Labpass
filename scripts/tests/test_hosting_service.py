@@ -9,7 +9,7 @@ import pytest
 
 SCRIPT = (
     Path(__file__).resolve().parents[2]
-    / "infra/foundation/templates/labpass-service.sh"
+    / "infra/modules/application/templates/labpass-service.sh"
 )
 IMAGE = (
     "123456789012.dkr.ecr.us-east-1.amazonaws.com/labpass-demo/api@sha256:" + "a" * 64

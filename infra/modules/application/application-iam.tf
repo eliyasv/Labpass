@@ -6,14 +6,14 @@ resource "aws_cloudwatch_log_group" "runtime" {
 
 resource "aws_iam_role_policy_attachment" "ssm" {
   for_each   = local.hosting_roles
-  role       = aws_iam_role.runtime[each.key].name
+  role       = var.runtime_roles[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_role_policy" "container_runtime" {
   for_each = local.hosting_roles
   name     = "container-runtime"
-  role     = aws_iam_role.runtime[each.key].id
+  role     = var.runtime_roles[each.key].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -25,7 +25,7 @@ resource "aws_iam_role_policy" "container_runtime" {
       {
         Effect   = "Allow"
         Action   = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"]
-        Resource = aws_ecr_repository.application["api"].arn
+        Resource = var.api_repository.arn
       },
       {
         Effect   = "Allow"

@@ -7,9 +7,9 @@ resource "aws_cloudwatch_log_group" "confirmations" {
 resource "aws_lambda_function" "confirmations" {
   count                          = local.confirmation_enabled ? 1 : 0
   function_name                  = local.confirmation_name
-  role                           = aws_iam_role.runtime["consumer"].arn
+  role                           = var.consumer_role.arn
   package_type                   = "Image"
-  image_uri                      = "${aws_ecr_repository.application["lambda"].repository_url}@${var.confirmation_worker.image_digest}"
+  image_uri                      = "${var.lambda_repository.repository_url}@${var.confirmation_worker.image_digest}"
   architectures                  = ["x86_64"]
   publish                        = true
   timeout                        = 60
@@ -27,17 +27,17 @@ resource "aws_lambda_function" "confirmations" {
     log_group  = aws_cloudwatch_log_group.confirmations[0].name
   }
   vpc_config {
-    subnet_ids         = [for subnet in aws_subnet.application : subnet.id]
-    security_group_ids = [aws_security_group.database_client["consumer"].id]
+    subnet_ids         = var.application_subnet_ids
+    security_group_ids = [var.consumer_security_group_id]
   }
   environment {
     variables = {
       LABPASS_AWS_ENABLED   = "true"
-      LABPASS_QUEUE_ARN     = aws_sqs_queue.confirmations.arn
-      LABPASS_DB_SECRET_ARN = aws_secretsmanager_secret.database["consumer"].arn
-      LABPASS_DB_HOST       = aws_db_instance.main.address
-      LABPASS_DB_NAME       = aws_db_instance.main.db_name
-      LABPASS_DB_PORT       = tostring(aws_db_instance.main.port)
+      LABPASS_QUEUE_ARN     = var.queue_arn
+      LABPASS_DB_SECRET_ARN = var.database.secret_arn
+      LABPASS_DB_HOST       = var.database.host
+      LABPASS_DB_NAME       = var.database.name
+      LABPASS_DB_PORT       = tostring(var.database.port)
       LABPASS_DB_CA_FILE    = "/var/task/certs/rds-global-bundle.pem"
       LABPASS_SES_FROM      = var.confirmation_worker.sender_email
     }
@@ -45,10 +45,7 @@ resource "aws_lambda_function" "confirmations" {
 
   depends_on = [
     aws_iam_role_policy.confirmation_runtime,
-    aws_iam_role_policy.database_secret,
-    aws_iam_role_policy.queue,
     aws_ecr_repository_policy.lambda,
-    aws_route.application_egress,
   ]
 }
 
@@ -61,7 +58,7 @@ resource "aws_lambda_alias" "confirmations" {
 
 resource "aws_lambda_event_source_mapping" "confirmations" {
   count                              = local.confirmation_enabled ? 1 : 0
-  event_source_arn                   = aws_sqs_queue.confirmations.arn
+  event_source_arn                   = var.queue_arn
   function_name                      = aws_lambda_alias.confirmations[0].arn
   enabled                            = var.confirmation_worker.mapping_enabled
   batch_size                         = 1
@@ -74,7 +71,7 @@ resource "aws_lambda_event_source_mapping" "confirmations" {
 
   lifecycle {
     precondition {
-      condition     = aws_sqs_queue.confirmations.visibility_timeout_seconds >= 6 * aws_lambda_function.confirmations[0].timeout
+      condition     = var.queue_visibility_timeout_seconds >= 6 * aws_lambda_function.confirmations[0].timeout
       error_message = "SQS visibility must be at least six times the Lambda timeout with a zero batching window."
     }
     precondition {

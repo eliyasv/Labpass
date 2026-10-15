@@ -1,12 +1,6 @@
 output "network" {
   description = "Network IDs for later workloads; database subnets are isolated."
-  value = {
-    vpc_id                 = aws_vpc.main.id
-    availability_zones     = local.availability_zones
-    public_subnet_ids      = [for subnet in aws_subnet.public : subnet.id]
-    application_subnet_ids = [for subnet in aws_subnet.application : subnet.id]
-    database_subnet_ids    = [for subnet in aws_subnet.database : subnet.id]
-  }
+  value       = module.network.network
 }
 
 output "image_repositories" {
@@ -25,67 +19,29 @@ output "confirmation_queue" {
 
 output "database" {
   description = "Database endpoint and credential ARNs; secret values are populated outside Terraform."
-  value = {
-    host              = aws_db_instance.main.address
-    port              = aws_db_instance.main.port
-    name              = aws_db_instance.main.db_name
-    master_secret_arn = aws_db_instance.main.master_user_secret[0].secret_arn
-    secret_arns       = { for name, secret in aws_secretsmanager_secret.database : name => secret.arn }
-    security_group_id = aws_security_group.database.id
-  }
+  value       = module.database.database
 }
 
 output "runtime_access" {
-  description = "Workload security groups, role ARNs and EC2 profiles for compute integration."
+  description = "Workload security groups, role ARNs and EC2 profiles."
   value = {
-    security_group_ids = { for name, group in aws_security_group.database_client : name => group.id }
-    role_arns          = { for name, role in aws_iam_role.runtime : name => role.arn }
-    instance_profiles  = { for name, profile in aws_iam_instance_profile.runtime : name => profile.name }
+    security_group_ids = module.database.client_security_group_ids
+    role_arns          = { for name, role in module.database.runtime_roles : name => role.arn }
+    instance_profiles  = module.database.instance_profiles
   }
 }
 
 output "application_hosting" {
   description = "ALB, groups and launch templates; operator templates do not launch hosts automatically."
-  value = local.hosting_enabled ? {
-    alb_dns_name     = aws_lb.api[0].dns_name
-    alb_zone_id      = aws_lb.api[0].zone_id
-    api_target_group = aws_lb_target_group.api[0].arn
-    api_asg_name     = aws_autoscaling_group.api[0].name
-    relay_asg_name   = aws_autoscaling_group.relay[0].name
-    launch_templates = { for name, template in aws_launch_template.runtime : name => {
-      id      = template.id
-      version = template.latest_version
-    } }
-    log_groups = { for name, group in aws_cloudwatch_log_group.runtime : name => group.name }
-  } : null
+  value       = module.application.application_hosting
 }
 
 output "frontend_delivery" {
   description = "Frontend URL, publication bucket, distribution and origin DNS; null when disabled."
-  value = local.frontend_enabled ? {
-    url                    = "https://${var.frontend.domain_name}"
-    bucket_name            = aws_s3_bucket.frontend[0].id
-    distribution_id        = aws_cloudfront_distribution.site[0].id
-    distribution_domain    = aws_cloudfront_distribution.site[0].domain_name
-    origin_domain          = aws_route53_record.origin[0].fqdn
-    viewer_certificate_arn = aws_acm_certificate_validation.site["viewer"].certificate_arn
-    origin_certificate_arn = aws_acm_certificate_validation.site["origin"].certificate_arn
-  } : null
+  value       = module.frontend.frontend_delivery
 }
 
 output "confirmation_worker" {
   description = "Lambda alias/version, SQS mapping and SES identity metadata; null when disabled."
-  value = local.confirmation_enabled ? {
-    function_name     = aws_lambda_function.confirmations[0].function_name
-    function_version  = aws_lambda_function.confirmations[0].version
-    alias_arn         = aws_lambda_alias.confirmations[0].arn
-    mapping_uuid      = aws_lambda_event_source_mapping.confirmations[0].uuid
-    mapping_enabled   = aws_lambda_event_source_mapping.confirmations[0].enabled
-    max_concurrency   = var.confirmation_worker.max_concurrency
-    log_group         = aws_cloudwatch_log_group.confirmations[0].name
-    ses_identity_arn  = aws_sesv2_email_identity.confirmations[0].arn
-    ses_verified      = aws_sesv2_email_identity.confirmations[0].verified_for_sending_status
-    configuration_set = aws_sesv2_configuration_set.confirmations[0].configuration_set_name
-    dkim_record_names = [for record in aws_route53_record.email_dkim : record.name]
-  } : null
+  value       = module.confirmations.confirmation_worker
 }

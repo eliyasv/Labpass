@@ -8,7 +8,7 @@ locals {
 resource "aws_iam_role_policy" "confirmation_runtime" {
   count = local.confirmation_enabled ? 1 : 0
   name  = "confirmation-runtime"
-  role  = aws_iam_role.runtime["consumer"].id
+  role  = var.consumer_role.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -48,7 +48,7 @@ resource "aws_iam_role_policy" "confirmation_runtime" {
 
 resource "aws_ecr_repository_policy" "lambda" {
   count      = local.confirmation_enabled ? 1 : 0
-  repository = aws_ecr_repository.application["lambda"].name
+  repository = var.lambda_repository.name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -56,7 +56,7 @@ resource "aws_ecr_repository_policy" "lambda" {
       Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
       Action    = ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
-      Resource  = aws_ecr_repository.application["lambda"].arn
+      Resource  = var.lambda_repository.arn
       Condition = {
         ArnLike = { "aws:SourceArn" = [local.confirmation_function_arn, "${local.confirmation_function_arn}:*"] }
       }
