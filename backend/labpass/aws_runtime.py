@@ -34,8 +34,7 @@ def make_aws_client(service, settings):
     )
 
 
-def database_url(settings, secret):
-    """RDS-managed secrets contain username/password; host/db come from configuration."""
+def database_credentials(secret):
     try:
         value = json.loads(secret)
         username, password = value["username"], value["password"]
@@ -49,6 +48,12 @@ def database_url(settings, secret):
             raise ValueError
     except ValueError, TypeError, KeyError:
         raise AwsRuntimeError("invalid_database_secret") from None
+    return username, password
+
+
+def database_url(settings, secret):
+    """RDS-managed secrets contain username/password; host/db come from configuration."""
+    username, password = database_credentials(secret)
     return URL.create(
         "postgresql+psycopg",
         username=username,
@@ -103,9 +108,15 @@ class AwsRuntime:
     """One serial process owns this cache; no connections are shared across processes."""
 
     def __init__(
-        self, settings, *, client_factory=make_aws_client, engine_factory=make_cloud_engine
+        self,
+        settings,
+        *,
+        client_factory=make_aws_client,
+        engine_factory=make_cloud_engine,
+        username=None,
     ):
         self.settings = settings
+        self._username = username
         self._engine_factory = engine_factory
         self._secret_client = client_factory("secretsmanager", settings)
         self.sender = SesSender(client_factory("sesv2", settings), settings.sender_email)
@@ -125,6 +136,8 @@ class AwsRuntime:
         except BotoCoreError, ClientError:
             raise AwsRuntimeError("database_secret_unavailable") from None
         url = database_url(self.settings, response.get("SecretString"))
+        if self._username is not None and url.username != self._username:
+            raise AwsRuntimeError("unexpected_database_role")
         self._engine = self._engine_factory(url)
         self._sessions = make_sessions(self._engine)
         self._expires_at = time.monotonic() + SECRET_TTL_SECONDS

@@ -22,3 +22,24 @@ output "confirmation_queue" {
     dlq_arn = aws_sqs_queue.dead_letter.arn
   }
 }
+
+output "database" {
+  description = "Database endpoint and credential ARNs; secret values are populated outside Terraform."
+  value = {
+    host              = aws_db_instance.main.address
+    port              = aws_db_instance.main.port
+    name              = aws_db_instance.main.db_name
+    master_secret_arn = aws_db_instance.main.master_user_secret[0].secret_arn
+    secret_arns       = { for name, secret in aws_secretsmanager_secret.database : name => secret.arn }
+    security_group_id = aws_security_group.database.id
+  }
+}
+
+output "runtime_access" {
+  description = "Workload security groups, role ARNs and EC2 profiles for compute integration."
+  value = {
+    security_group_ids = { for name, group in aws_security_group.database_client : name => group.id }
+    role_arns          = { for name, role in aws_iam_role.runtime : name => role.arn }
+    instance_profiles  = { for name, profile in aws_iam_instance_profile.runtime : name => profile.name }
+  }
+}

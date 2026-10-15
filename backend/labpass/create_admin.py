@@ -3,7 +3,11 @@
 import argparse
 from getpass import getpass
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from labpass.auth import hash_password, register
+from labpass.aws_config import AwsRuntimeError
+from labpass.cloud_database import CloudDatabase
 from labpass.config import Settings
 from labpass.db import make_engine, make_sessions
 from labpass.rules import DomainError
@@ -33,15 +37,27 @@ def main():
             "Invalid email or password; password must have 12–128 characters"
         ) from None
     encoded = hash_password(credentials.password.get_secret_value())
-    engine = make_engine(settings.database_url)
+    cloud = None
+    engine = None
     try:
-        with make_sessions(engine).begin() as session:
+        if settings.cloud_database is not None:
+            cloud = CloudDatabase(settings.cloud_database)
+            sessions = cloud
+        else:
+            engine = make_engine(settings.database_url)
+            sessions = make_sessions(engine)
+        with sessions.begin() as session:
             admin_id = provision_admin(session, credentials.email, encoded)
         print(f"Created administrator {admin_id}")
     except DomainError as exc:
         raise SystemExit(exc.code) from None
+    except AwsRuntimeError, SQLAlchemyError:
+        raise SystemExit("administrator_database_unavailable") from None
     finally:
-        engine.dispose()
+        if cloud is not None:
+            cloud.close()
+        elif engine is not None:
+            engine.dispose()
 
 
 if __name__ == "__main__":

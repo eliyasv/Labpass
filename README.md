@@ -29,7 +29,8 @@ retrying a successful request with the same key returns the original booking.
 | Database | PostgreSQL 18 |
 | Local environment | Docker Compose, ElasticMQ, Mailpit |
 | Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
-| Planned infrastructure and delivery | Terraform, GitHub Actions with AWS OIDC, k6 |
+| Infrastructure | Terraform: VPC, ECR, SQS, RDS, IAM and Secrets Manager |
+| Planned delivery and load testing | GitHub Actions with AWS OIDC, k6 |
 
 ## Run locally
 
@@ -134,7 +135,7 @@ backend/       FastAPI app, migrations, workers, tests and container images
 frontend/      React app, generated API types and browser tests
 local/         Local queue configuration
 scripts/       Database test runner, smoke checks and OpenAPI export
-infra/         Terraform networking, image repositories and queues
+infra/         Terraform networking, database, repositories, queues and runtime access
 compose.yaml   Local application stack
 docs/          Architecture, development guides and verification reports
 ```
@@ -142,13 +143,15 @@ docs/          Architecture, development guides and verification reports
 ## Project status
 
 The local application and confirmation pipeline are implemented. Cloud worker
-adapters and Lambda packaging are tested offline. Terraform foundations cover
-networking, image repositories and queues. The remaining AWS workloads and
-deployment, GitHub Actions, load testing and monitoring are the next steps.
+adapters, API secret loading and Lambda packaging are tested offline. Terraform
+defines networking, image repositories, queues, private RDS and scoped runtime
+access. AWS deployment, compute/frontend integration, GitHub Actions, load testing
+and monitoring remain pending.
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
 - [AWS worker configuration](docs/aws-workers.md)
+- [Database runtime](docs/database-runtime.md)
 - [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)
 - [Technical documentation and verification](docs/README.md)

@@ -4,17 +4,27 @@ from urllib.parse import urlsplit
 
 from sqlalchemy.engine import make_url
 
+from labpass.cloud_database import CloudDatabaseSettings
+
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str = field(repr=False)
+    database_url: str | None = field(repr=False)
     public_origin: str = "https://localhost"
     cookie_secure: bool = True
     session_ttl_seconds: int = 8 * 60 * 60
+    cloud_database: CloudDatabaseSettings | None = None
 
     def __post_init__(self):
-        if make_url(self.database_url).drivername != "postgresql+psycopg":
+        if (self.database_url is None) == (self.cloud_database is None):
+            raise RuntimeError("Configure exactly one database connection source")
+        if (
+            self.database_url is not None
+            and make_url(self.database_url).drivername != "postgresql+psycopg"
+        ):
             raise RuntimeError("DATABASE_URL must use postgresql+psycopg")
+        if self.cloud_database is not None and not self.cookie_secure:
+            raise RuntimeError("Cloud API requires Secure cookies")
         try:
             origin = urlsplit(self.public_origin)
             origin_port = origin.port
@@ -44,11 +54,19 @@ class Settings:
 
     @classmethod
     def from_env(cls):
+        mode = os.environ.get("LABPASS_AWS_ENABLED", "false")
+        if mode not in {"true", "false"}:
+            raise RuntimeError("LABPASS_AWS_ENABLED must be true or false")
         url = os.environ.get("DATABASE_URL", "")
-        if not url:
+        cloud = None
+        if mode == "true":
+            if url:
+                raise RuntimeError("Cloud API must not set DATABASE_URL")
+            cloud = CloudDatabaseSettings.from_env()
+        elif not url:
             raise RuntimeError("DATABASE_URL is required")
         # Validate the DB driver first, without echoing configuration values.
-        if make_url(url).drivername != "postgresql+psycopg":
+        if url and make_url(url).drivername != "postgresql+psycopg":
             raise RuntimeError("DATABASE_URL must use postgresql+psycopg")
         origin = os.environ.get("APP_ORIGIN", "")
         if not origin:
@@ -56,4 +74,4 @@ class Settings:
         secure = os.environ.get("LABPASS_COOKIE_SECURE", "true")
         if secure not in {"true", "false"}:
             raise RuntimeError("LABPASS_COOKIE_SECURE must be true or false")
-        return cls(url, origin, secure == "true")
+        return cls(url or None, origin, secure == "true", cloud_database=cloud)

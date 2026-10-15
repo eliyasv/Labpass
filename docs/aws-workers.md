@@ -40,8 +40,8 @@ reads `AWSCURRENT` using
 The secret's JSON must contain nonempty string fields `username` and `password`.
 Additional fields are ignored; hostname/database/TLS come from deployment
 configuration. Use separate restricted relay and consumer database credentials;
-the format also accepts RDS-managed credential JSON, but granting access to the
-RDS master secret would give the worker excessive privileges.
+relay and Lambda entry points require `labpass_relay` and `labpass_consumer`
+respectively. Master/API/migration credentials are rejected.
 
 The cache lasts five minutes. Refresh disposes the old pool before fetching a new
 secret; failure cannot fall back to expired cached credentials. Lambda checks the
@@ -104,10 +104,13 @@ See [SES SendEmail](https://docs.aws.amazon.com/boto3/latest/reference/services/
 Identity/DKIM verification, sandbox recipient restrictions, quotas, bounce and
 complaint handling remain required deployment/operations work.
 
-## IAM and database access plan
+## IAM and database access
 
 Policies require resource ARNs from Terraform resources and outputs.
-IAM policies and database grants remain pending.
+Terraform defines role-specific secret access and source-queue permissions.
+Database bootstrap installs the table grants. SES, logging, ECR/SSM and Lambda
+VPC permissions remain pending with workload integration. See
+[Database runtime](database-runtime.md).
 
 | Principal | Minimum intended permissions |
 | --- | --- |
@@ -128,7 +131,7 @@ and [Lambda VPC permissions](https://docs.aws.amazon.com/lambda/latest/dg/config
 ## Private connectivity and release order
 
 Lambda attaches to private subnets to reach RDS on PostgreSQL's configured port.
-RDS security groups admit only the consumer/relay/application/migration groups.
+RDS security groups admit only the API/relay/consumer/migration/bootstrap groups.
 For SDK HTTPS calls, provide either an explicit NAT route or interface endpoints
 with private DNS and port-443 security-group access for Secrets Manager and the
 required queue/SES paths. SES's documented **API** endpoint is distinct from its
@@ -141,16 +144,16 @@ and [SES endpoints](https://docs.aws.amazon.com/ses/latest/dg/send-email-set-up-
 
 EC2 also needs explicit ECR API/DKR and S3 layer retrieval, SSM, logs and bootstrap
 paths. Lambda image retrieval is performed by the Lambda service with appropriate
-ECR repository permissions. The Terraform foundation provides a zonal NAT and an S3 gateway endpoint; workload-specific
-permissions, database resources and availability configuration remain pending.
+ECR repository permissions. Terraform defines a zonal NAT, an S3 gateway endpoint
+and Single-AZ RDS. Compute integration and remaining workload permissions are pending.
 
 Planned release: OIDC-authenticated CI builds and tests immutable images; a
 controlled job runs additive migrations once; configure roles/secrets/TLS;
 deploy API/relay and Lambda versions; then enable the source mapping and run a
 real end-to-end smoke. Serialize releases so an older job cannot overwrite a
 newer deployment. Workload Terraform and GitHub Actions remain pending.
-The API still uses its existing `DATABASE_URL` configuration: cloud API secret
-bootstrap is separate infrastructure work, not implemented by these worker adapters.
+The cloud API loads its own database secret at runtime. Bootstrap and controlled
+migration commands are documented in [Database runtime](database-runtime.md).
 
 ## Run offline
 

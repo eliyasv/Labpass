@@ -23,6 +23,8 @@ from labpass.auth import (
     require_csrf,
     valid_token,
 )
+from labpass.aws_config import AwsRuntimeError
+from labpass.cloud_database import CloudDatabase
 from labpass.config import Settings
 from labpass.db import make_engine, make_sessions
 from labpass.models import AuthSession, Booking, EmailDelivery, OutboxEvent, User, Workshop
@@ -43,11 +45,20 @@ from labpass.services import cancel_booking, change_capacity, create_booking, lo
 logger = logging.getLogger("labpass")
 
 
-def create_app(settings: Settings | None = None, *, engine=None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, engine=None, session_provider=None) -> FastAPI:
     settings = settings or Settings.from_env()
-    owns_engine = engine is None
-    engine = engine if engine is not None else make_engine(settings.database_url)
-    sessions = make_sessions(engine)
+    if engine is not None and session_provider is not None:
+        raise ValueError("Supply an engine or a session provider")
+    owns_engine = engine is None and session_provider is None
+    cloud = None
+    if session_provider is not None:
+        sessions = session_provider
+    elif settings.cloud_database is not None and engine is None:
+        cloud = CloudDatabase(settings.cloud_database)
+        sessions = cloud
+    else:
+        engine = engine if engine is not None else make_engine(settings.database_url)
+        sessions = make_sessions(engine)
 
     def write_origin(request: Request):
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
@@ -62,7 +73,9 @@ def create_app(settings: Settings | None = None, *, engine=None) -> FastAPI:
         try:
             yield
         finally:
-            if owns_engine:
+            if cloud is not None:
+                cloud.close()
+            elif owns_engine:
                 engine.dispose()
 
     app = FastAPI(
@@ -113,6 +126,7 @@ def create_app(settings: Settings | None = None, *, engine=None) -> FastAPI:
 
     @app.exception_handler(PoolTimeoutError)
     @app.exception_handler(OperationalError)
+    @app.exception_handler(AwsRuntimeError)
     async def unavailable(request, exc):
         # Do not expose/log connection strings, SQL parameters, or database exceptions.
         return JSONResponse(
