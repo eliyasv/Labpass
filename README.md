@@ -29,7 +29,7 @@ retrying a successful request with the same key returns the original booking.
 | Database | PostgreSQL 18 |
 | Local environment | Docker Compose, ElasticMQ, Mailpit |
 | Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
-| Infrastructure | Terraform: VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
+| Infrastructure | Terraform: Route 53, CloudFront, S3, VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
 | Planned delivery and load testing | GitHub Actions with AWS OIDC, k6 |
 
 ## Run locally
@@ -135,7 +135,7 @@ backend/       FastAPI app, migrations, workers, tests and container images
 frontend/      React app, generated API types and browser tests
 local/         Local queue configuration
 scripts/       Database test runner, smoke checks and OpenAPI export
-infra/         Terraform networking, database, repositories, queues and runtime access
+infra/         Terraform delivery, networking, compute, database, queues and runtime access
 compose.yaml   Local application stack
 docs/          Architecture, development guides and verification reports
 ```
@@ -145,14 +145,16 @@ docs/          Architecture, development guides and verification reports
 The local application and confirmation pipeline are implemented. Cloud worker
 adapters, API secret loading and Lambda packaging are tested offline. Terraform
 defines networking, image repositories, queues, private RDS, scoped runtime access
-and optional API/relay hosting behind an HTTPS ALB. AWS deployment, frontend
-integration, GitHub Actions, load testing and alarms remain pending.
+and optional API/relay hosting behind an HTTPS ALB, with private S3 frontend
+delivery through CloudFront and Route 53. AWS deployment, Lambda/SES provisioning,
+GitHub Actions, load testing and alarms remain pending.
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
 - [AWS worker configuration](docs/aws-workers.md)
 - [Database runtime](docs/database-runtime.md)
 - [Application hosting](docs/application-hosting.md)
+- [Frontend delivery](docs/frontend-delivery.md)
 - [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)
 - [Technical documentation and verification](docs/README.md)

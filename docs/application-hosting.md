@@ -10,7 +10,7 @@ to enable the ALB, launch templates and Auto Scaling Groups:
 | `ami_id` | Amazon-owned AL2023 standard AMI, kernel 6.1, x86_64, EBS/HVM |
 | `image_digest` | `sha256:` followed by 64 hexadecimal characters; image published to the API ECR repository |
 | `public_origin` | HTTPS browser origin without a path or credentials |
-| `origin_certificate_arn` | Issued ACM certificate in the target account/region, matching the ALB origin hostname |
+| `origin_certificate_arn` | Existing matching regional ACM certificate for standalone hosting; omit when `frontend` provisions it |
 | `api_desired_capacity` | Default `0`; running fleet permits `2`–`4` instances |
 | `relay_desired_capacity` | Default `0`; running fleet permits `1`–`2` instances |
 
@@ -18,16 +18,22 @@ The AMI ID and image digest are explicit inputs. Launch templates use numeric
 versions. Changing the template starts a rolling refresh; successful Terraform
 execution alone does not establish that the refresh completed.
 
+Hosting also requires the sensitive `origin_verify_token` input. Frontend
+integration, certificate/DNS inputs and token rotation:
+[Frontend delivery](frontend-delivery.md).
+
 ## Traffic and instance boundaries
 
 The internet-facing ALB occupies both public subnets. Its security group permits
 only HTTPS from the AWS-managed CloudFront origin-facing prefix list. The HTTPS
-listener forwards `/api/*` to port 8000 and returns 404 for other paths. The API
+listener forwards `/api` and `/api/*` to port 8000 only with the matching origin
+token and returns 404 for other requests. The API
 security group accepts port 8000 only from the ALB group.
 
-The prefix list identifies CloudFront origin traffic across distributions.
-Distribution-specific origin validation, CloudFront behaviours, origin DNS and
-certificate provisioning remain pending with frontend integration.
+The prefix list identifies CloudFront traffic across distributions. The additional
+origin token restricts forwarding to requests configured by this deployment.
+Optional frontend integration defines CloudFront behaviours, origin DNS and
+certificate provisioning.
 
 | Component | Runtime and access |
 | --- | --- |

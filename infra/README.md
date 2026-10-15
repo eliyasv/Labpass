@@ -19,6 +19,7 @@ Terraform root: `foundation/`. Region: `us-east-1`.
 | IAM | Component-specific secret reads, bootstrap secret writes, relay/consumer SQS scopes and EC2 profiles |
 | Optional hosting | HTTPS ALB; private API/relay ASGs; bootstrap/migration launch templates |
 | Host access/logging | SSM, ECR pulls and component CloudWatch log groups with seven-day retention |
+| Optional frontend delivery | Private versioned S3 with OAC, CloudFront, public/origin DNS records and separate DNS-validated ACM certificates |
 
 ## Requirements
 
@@ -47,10 +48,16 @@ Tests use a mocked AWS provider and require no AWS credentials.
 | `name_prefix` | `labpass-demo` | Resource name prefix |
 | `database_engine_version` | `18.6` | Exact PostgreSQL 18 minor version; target-region orderability check |
 | `database_deletion_protection` | `true` | RDS deletion protection; final snapshot remains enabled |
-| `application` | `null` | Hosting configuration; requires AMI, image digest, HTTPS origin and certificate ARN |
+| `application` | `null` | Hosting configuration; AMI, image digest, HTTPS origin and an existing certificate for standalone hosting |
+| `frontend` | `null` | S3/CloudFront delivery; existing public hosted zone ID, public hostname and origin hostname |
+| `origin_verify_token` | `null` | Required sensitive 64-character random hex token when application hosting is enabled |
+| `origin_verify_previous_token` | `null` | Previous token accepted during staged rotation |
 
 Hosting desired capacities default to zero for controlled database setup. See
 [application inputs](../docs/application-hosting.md#configuration).
+Frontend integration provisions the origin certificate; omit
+`application.origin_certificate_arn` in that mode. Zone ownership/delegation,
+publication and origin-token handling: [Frontend delivery](../docs/frontend-delivery.md).
 
 ## Outputs
 
@@ -62,6 +69,7 @@ Hosting desired capacities default to zero for controlled database setup. See
 | `database` | Endpoint, master/role-secret ARNs and database security group |
 | `runtime_access` | Workload security groups, IAM role ARNs and EC2 profile names |
 | `application_hosting` | ALB/target group, ASG names, template ID/versions and log groups; null when disabled |
+| `frontend_delivery` | Public URL, bucket, distribution ID/domain and certificate/origin metadata; null when disabled |
 
 ## State
 
@@ -69,14 +77,17 @@ Backend: local. State, saved plans, local variable files and provider binaries
 are excluded from Git. The provider lockfile is tracked.
 
 Password values are created by RDS and the SDK bootstrap, outside Terraform.
+The CloudFront/ALB origin token is stored in state and saved plans despite its
+sensitive input flag. Restrict their access; shared deployment requires encrypted,
+versioned remote state and locking.
 
 ## Integration status
 
-Frontend hosting, DNS/ACM provisioning, distribution-specific origin validation,
 Lambda mapping/SES/VPC permissions, release workflows and alarms remain pending.
-EC2 bootstrap, database access and ALB TLS/health have not been verified in AWS.
+CloudFront/S3/OAC, authoritative DNS, certificate issuance, EC2 bootstrap, database
+access and ALB TLS/health have not been verified in AWS.
 
 [Infrastructure design](../docs/infrastructure.md) ·
 [Database runtime](../docs/database-runtime.md) ·
 [Application hosting](../docs/application-hosting.md) ·
-[Verification](../docs/milestone-5c.md)
+[Frontend delivery](../docs/frontend-delivery.md)
