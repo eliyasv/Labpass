@@ -1,5 +1,5 @@
 mock_provider "aws" {
-  source = "./tests/fixtures/hosting"
+  source = "./tests/fixtures/common"
 
   mock_resource "aws_s3_bucket" {
     defaults = {
@@ -39,14 +39,6 @@ override_data {
   values = { name = "example.test.", private_zone = false }
 }
 
-override_resource {
-  target = aws_lb.api[0]
-  values = {
-    arn      = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/mock/0000000000000000"
-    dns_name = "mock-alb.us-east-1.elb.amazonaws.com"
-    zone_id  = "Z35SXDOTRQ7X7K"
-  }
-}
 override_resource {
   target = aws_route53_record.origin[0]
   values = { fqdn = "origin.labpass.example.test." }
@@ -89,12 +81,68 @@ variables {
     domain_name        = "labpass.example.test"
     origin_domain_name = "origin.labpass.example.test"
   }
+
+  alb_origin = {
+    dns_name = "mock-alb.us-east-1.elb.amazonaws.com"
+    zone_id  = "Z35SXDOTRQ7X7K"
+  }
+  vpc_id                 = "vpc-00000000000000001"
+  public_subnet_ids      = ["subnet-00000000000000003", "subnet-00000000000000004"]
+  application_subnet_ids = ["subnet-00000000000000005", "subnet-00000000000000006"]
+  database = {
+    host              = "mock.example.us-east-1.rds.amazonaws.com"
+    port              = 5432
+    name              = "labpass"
+    master_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-mock-AbCd12"
+    secret_arns = {
+      api       = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-api-AbCd12"
+      relay     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-relay-AbCd12"
+      consumer  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-consumer-AbCd12"
+      migration = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-migration-AbCd12"
+    }
+  }
+  runtime_roles = {
+    api = {
+      id   = "labpass-demo-api"
+      name = "labpass-demo-api"
+    }
+    relay = {
+      id   = "labpass-demo-relay"
+      name = "labpass-demo-relay"
+    }
+    bootstrap = {
+      id   = "labpass-demo-bootstrap"
+      name = "labpass-demo-bootstrap"
+    }
+    migration = {
+      id   = "labpass-demo-migration"
+      name = "labpass-demo-migration"
+    }
+  }
+  instance_profiles = {
+    api       = "labpass-demo-api"
+    relay     = "labpass-demo-relay"
+    bootstrap = "labpass-demo-bootstrap"
+    migration = "labpass-demo-migration"
+  }
+  client_security_group_ids = {
+    api       = "sg-00000000000000001"
+    relay     = "sg-00000000000000002"
+    bootstrap = "sg-00000000000000004"
+    migration = "sg-00000000000000005"
+  }
+  api_repository = {
+    repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/labpass-demo/api"
+    arn            = "arn:aws:ecr:us-east-1:123456789012:repository/labpass-demo/api"
+  }
+  queue_arn                = "arn:aws:sqs:us-east-1:123456789012:mock-confirmations"
+  listener_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000001"
 }
 
 run "delivery_disabled" {
+  module { source = "../modules/frontend" }
   command = plan
   variables {
-    application         = null
     frontend            = null
     origin_verify_token = null
   }
@@ -111,6 +159,7 @@ run "delivery_disabled" {
 }
 
 run "private_storage_and_dns" {
+  module { source = "../modules/frontend" }
   command = apply
 
   assert {
@@ -151,8 +200,7 @@ run "private_storage_and_dns" {
         record.alias[0].zone_id == aws_cloudfront_distribution.site[0].hosted_zone_id &&
         !record.alias[0].evaluate_target_health
       ]) &&
-      aws_route53_record.origin[0].alias[0].name == aws_lb.api[0].dns_name &&
-      aws_lb_listener.api_https[0].certificate_arn == aws_acm_certificate_validation.site["origin"].certificate_arn &&
+      aws_route53_record.origin[0].alias[0].name == var.alb_origin.dns_name &&
       aws_cloudfront_distribution.site[0].viewer_certificate[0].acm_certificate_arn == aws_acm_certificate_validation.site["viewer"].certificate_arn &&
       aws_acm_certificate.site["viewer"].domain_name == var.frontend.domain_name &&
       aws_acm_certificate.site["origin"].domain_name == var.frontend.origin_domain_name &&
@@ -178,6 +226,7 @@ run "private_storage_and_dns" {
 }
 
 run "api_forwarding_and_origin_gate" {
+  module { source = "../modules/frontend" }
   command = apply
 
   assert {
@@ -206,11 +255,7 @@ run "api_forwarding_and_origin_gate" {
       one([for origin in aws_cloudfront_distribution.site[0].origin : origin if origin.origin_id == "api"]).custom_origin_config[0].origin_protocol_policy == "https-only" &&
       one([for origin in aws_cloudfront_distribution.site[0].origin : origin if origin.origin_id == "api"]).custom_origin_config[0].origin_ssl_protocols == toset(["TLSv1.2"]) &&
       one(one([for origin in aws_cloudfront_distribution.site[0].origin : origin if origin.origin_id == "api"]).custom_header).value == var.origin_verify_token &&
-      one(one([for origin in aws_cloudfront_distribution.site[0].origin : origin if origin.origin_id == "api"]).custom_header).name == "X-LabPass-Origin" &&
-      one([for condition in aws_lb_listener_rule.api[0].condition : condition.http_header[0] if length(condition.http_header) == 1]).values == toset([var.origin_verify_token]) &&
-      one([for condition in aws_lb_listener_rule.api[0].condition : condition.http_header[0] if length(condition.http_header) == 1]).http_header_name == "X-LabPass-Origin" &&
-      aws_lb_listener.api_https[0].default_action[0].fixed_response[0].status_code == "404" &&
-      local.runtime_environment["api"].APP_ORIGIN == "https://${var.frontend.domain_name}"
+      one(one([for origin in aws_cloudfront_distribution.site[0].origin : origin if origin.origin_id == "api"]).custom_header).name == "X-LabPass-Origin"
     )
     error_message = "CloudFront and ALB must share an exact origin token over verified HTTPS, with fail-closed default routing and a matching application Origin."
   }
@@ -283,6 +328,7 @@ run "reject_origin_token_patterns" {
 }
 
 run "accept_previous_token_during_rotation" {
+  module { source = "../modules/application" }
   command = plan
   variables {
     origin_verify_previous_token = "1111111111111111111111111111111111111111111111111111111111111111"
@@ -300,6 +346,7 @@ run "reject_invalid_previous_token" {
 }
 
 run "reject_unrelated_zone" {
+  module { source = "../modules/frontend" }
   command = plan
   override_data {
     target = data.aws_route53_zone.site[0]

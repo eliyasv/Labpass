@@ -28,7 +28,3 @@ variable "frontend" {
     error_message = "Standalone hosting needs an origin certificate ARN. Frontend integration requires hosting with a matching HTTPS public_origin and no supplied origin certificate; it provisions both certificates."
   }
 }
-
-locals {
-  frontend_enabled = var.frontend != null
-}

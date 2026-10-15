@@ -37,8 +37,9 @@ variables {
   aws_account_id = "123456789012"
 }
 
-run "demo_foundation" {
-  # Apply only to the mock provider's in-memory state, never to AWS.
+
+run "private_network" {
+  module { source = "../modules/network" }
   command = apply
 
   assert {
@@ -94,6 +95,10 @@ run "demo_foundation" {
     )
     error_message = "The default security group must have no traffic rules."
   }
+}
+
+run "shared_services" {
+  command = apply
 
   assert {
     condition = alltrue([
@@ -125,6 +130,7 @@ run "demo_foundation" {
   }
 }
 
+
 run "reject_other_region" {
   command = plan
   variables {
@@ -132,6 +138,7 @@ run "reject_other_region" {
   }
   expect_failures = [var.aws_region]
 }
+
 
 run "reject_missing_account" {
   command = plan
@@ -141,7 +148,9 @@ run "reject_missing_account" {
   expect_failures = [var.aws_account_id]
 }
 
+
 run "reject_single_available_zone" {
+  module { source = "../modules/network" }
   command = plan
   override_data {
     target = data.aws_availability_zones.available

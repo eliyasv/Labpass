@@ -53,8 +53,8 @@ resource "aws_route53_record" "origin" {
   type    = "A"
 
   alias {
-    name                   = aws_lb.api[0].dns_name
-    zone_id                = aws_lb.api[0].zone_id
+    name                   = var.alb_origin.dns_name
+    zone_id                = var.alb_origin.zone_id
     evaluate_target_health = false
   }
 }

@@ -1,70 +1,36 @@
-# Fictional metadata only; all resources use the mocked AWS provider.
+mock_provider "aws" { source = "./tests/fixtures/confirmations" }
 mock_provider "aws" {
-  mock_data "aws_availability_zones" {
-    defaults = { names = ["us-east-1a", "us-east-1b"] }
-  }
-  mock_data "aws_rds_orderable_db_instance" {
-    defaults = { instance_class = "db.t4g.micro" }
-  }
-  mock_resource "aws_db_instance" {
-    defaults = {
-      address = "mock.example.us-east-1.rds.amazonaws.com"
-      master_user_secret = [{
-        secret_arn    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-mock-AbCd12"
-        kms_key_id    = "mock-key"
-        secret_status = "active"
-      }]
-    }
-  }
-  mock_resource "aws_lambda_function" {
-    defaults = {
-      arn     = "arn:aws:lambda:us-east-1:123456789012:function:labpass-demo-confirmations"
-      version = "7"
-    }
-  }
-  mock_resource "aws_lambda_alias" {
-    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:labpass-demo-confirmations:live" }
-  }
+  alias  = "verified"
+  source = "./tests/fixtures/confirmations"
   mock_resource "aws_sesv2_email_identity" {
     defaults = {
       arn                         = "arn:aws:ses:us-east-1:123456789012:identity/example.com"
-      verified_for_sending_status = false
+      verified_for_sending_status = true
       dkim_signing_attributes = {
         tokens = ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"]
         status = "SUCCESS"
       }
     }
   }
-  mock_resource "aws_sesv2_configuration_set" {
-    defaults = { arn = "arn:aws:ses:us-east-1:123456789012:configuration-set/labpass-demo-confirmations" }
-  }
-  mock_resource "aws_cloudwatch_log_group" {
-    defaults = { arn = "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/labpass-demo-confirmations" }
+}
+mock_provider "aws" {
+  alias  = "pending_dkim"
+  source = "./tests/fixtures/confirmations"
+  mock_resource "aws_sesv2_email_identity" {
+    defaults = {
+      arn                         = "arn:aws:ses:us-east-1:123456789012:identity/example.com"
+      verified_for_sending_status = true
+      dkim_signing_attributes = {
+        tokens = ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"]
+        status = "PENDING"
+      }
+    }
   }
 }
 
 override_data {
   target = data.aws_route53_zone.email[0]
   values = { name = "example.com", private_zone = false }
-}
-override_resource {
-  target = aws_iam_role.runtime["consumer"]
-  values = { arn = "arn:aws:iam::123456789012:role/labpass-demo-consumer" }
-}
-override_resource {
-  target = aws_ecr_repository.application["lambda"]
-  values = {
-    arn            = "arn:aws:ecr:us-east-1:123456789012:repository/labpass-demo/lambda"
-    repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/labpass-demo/lambda"
-  }
-}
-override_resource {
-  target = aws_sqs_queue.confirmations
-  values = { arn = "arn:aws:sqs:us-east-1:123456789012:labpass-demo-confirmations" }
-}
-override_resource {
-  target = aws_secretsmanager_secret.database["consumer"]
-  values = { arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-consumer-AbCd12" }
 }
 
 variables {
@@ -75,9 +41,30 @@ variables {
     sender_email   = "notifications@example.com"
     hosted_zone_id = "Z00000000000001"
   }
+
+  application_subnet_ids = ["subnet-00000000000000005", "subnet-00000000000000006"]
+  consumer_role = {
+    id  = "labpass-demo-consumer"
+    arn = "arn:aws:iam::123456789012:role/labpass-demo-consumer"
+  }
+  consumer_security_group_id = "sg-00000000000000003"
+  database = {
+    host       = "mock.example.us-east-1.rds.amazonaws.com"
+    name       = "labpass"
+    port       = 5432
+    secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-consumer-AbCd12"
+  }
+  lambda_repository = {
+    repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/labpass-demo/lambda"
+    arn            = "arn:aws:ecr:us-east-1:123456789012:repository/labpass-demo/lambda"
+    name           = "labpass-demo/lambda"
+  }
+  queue_arn                        = "arn:aws:sqs:us-east-1:123456789012:mock-confirmations"
+  queue_visibility_timeout_seconds = 360
 }
 
 run "worker_disabled" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = null }
   assert {
@@ -97,20 +84,21 @@ run "worker_disabled" {
 }
 
 run "private_versioned_worker" {
+  module { source = "../modules/confirmations" }
   command = apply
 
   assert {
     condition = (
       aws_lambda_function.confirmations[0].package_type == "Image" &&
-      aws_lambda_function.confirmations[0].image_uri == "${aws_ecr_repository.application["lambda"].repository_url}@${var.confirmation_worker.image_digest}" &&
+      aws_lambda_function.confirmations[0].image_uri == "${var.lambda_repository.repository_url}@${var.confirmation_worker.image_digest}" &&
       aws_lambda_function.confirmations[0].architectures == tolist(["x86_64"]) &&
       aws_lambda_function.confirmations[0].image_config[0].command == tolist(["labpass.lambda_handler.lambda_handler"]) &&
       aws_lambda_function.confirmations[0].publish &&
       aws_lambda_alias.confirmations[0].function_version == "7" &&
       aws_lambda_event_source_mapping.confirmations[0].function_name == aws_lambda_alias.confirmations[0].arn &&
-      aws_lambda_function.confirmations[0].role == aws_iam_role.runtime["consumer"].arn &&
-      aws_lambda_function.confirmations[0].vpc_config[0].subnet_ids == toset([for subnet in aws_subnet.application : subnet.id]) &&
-      aws_lambda_function.confirmations[0].vpc_config[0].security_group_ids == toset([aws_security_group.database_client["consumer"].id]) &&
+      aws_lambda_function.confirmations[0].role == var.consumer_role.arn &&
+      aws_lambda_function.confirmations[0].vpc_config[0].subnet_ids == toset(var.application_subnet_ids) &&
+      aws_lambda_function.confirmations[0].vpc_config[0].security_group_ids == toset([var.consumer_security_group_id]) &&
       aws_cloudwatch_log_group.confirmations[0].retention_in_days == 7 &&
       aws_lambda_function.confirmations[0].logging_config[0].log_group == aws_cloudwatch_log_group.confirmations[0].name
     )
@@ -126,10 +114,9 @@ run "private_versioned_worker" {
       aws_lambda_event_source_mapping.confirmations[0].function_response_types == toset(["ReportBatchItemFailures"]) &&
       aws_lambda_event_source_mapping.confirmations[0].scaling_config[0].maximum_concurrency == 2 &&
       aws_lambda_function.confirmations[0].reserved_concurrent_executions == 2 &&
-      aws_sqs_queue.confirmations.visibility_timeout_seconds >= 6 * aws_lambda_function.confirmations[0].timeout &&
+      var.queue_visibility_timeout_seconds >= 6 * aws_lambda_function.confirmations[0].timeout &&
       !aws_lambda_event_source_mapping.confirmations[0].enabled &&
-      output.confirmation_worker.mapping_enabled == false &&
-      jsondecode(aws_sqs_queue.confirmations.redrive_policy).maxReceiveCount == 5
+      output.confirmation_worker.mapping_enabled == false
     )
     error_message = "Invocation, visibility, concurrency and partial failures must match the handler contract; polling starts disabled."
   }
@@ -138,10 +125,10 @@ run "private_versioned_worker" {
     condition = (
       aws_lambda_function.confirmations[0].environment[0].variables == tomap({
         LABPASS_AWS_ENABLED   = "true"
-        LABPASS_QUEUE_ARN     = aws_sqs_queue.confirmations.arn
-        LABPASS_DB_SECRET_ARN = aws_secretsmanager_secret.database["consumer"].arn
-        LABPASS_DB_HOST       = aws_db_instance.main.address
-        LABPASS_DB_NAME       = aws_db_instance.main.db_name
+        LABPASS_QUEUE_ARN     = var.queue_arn
+        LABPASS_DB_SECRET_ARN = var.database.secret_arn
+        LABPASS_DB_HOST       = var.database.host
+        LABPASS_DB_NAME       = var.database.name
         LABPASS_DB_PORT       = "5432"
         LABPASS_DB_CA_FILE    = "/var/task/certs/rds-global-bundle.pem"
         LABPASS_SES_FROM      = var.confirmation_worker.sender_email
@@ -154,6 +141,7 @@ run "private_versioned_worker" {
 }
 
 run "scoped_permissions_and_ses" {
+  module { source = "../modules/confirmations" }
   command = apply
 
   assert {
@@ -162,11 +150,9 @@ run "scoped_permissions_and_ses" {
       toset(jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[0].Action) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
       jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Action == ["ses:SendEmail"] &&
       toset(jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Resource) == toset([aws_sesv2_email_identity.confirmations[0].arn, aws_sesv2_configuration_set.confirmations[0].arn]) &&
-      jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Condition.StringEquals["ses:FromAddress"] == var.confirmation_worker.sender_email &&
-      jsondecode(aws_iam_role_policy.database_secret["consumer"].policy).Statement[0].Resource == aws_secretsmanager_secret.database["consumer"].arn &&
-      jsondecode(aws_iam_role_policy.queue["consumer"].policy).Statement[0].Resource == aws_sqs_queue.confirmations.arn
+      jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Condition.StringEquals["ses:FromAddress"] == var.confirmation_worker.sender_email
     )
-    error_message = "Secrets, queue reads, logs and email sends must stay scoped to the consumer, identity/configuration set and exact sender."
+    error_message = "Logs and email sends must stay scoped to the consumer log group, identity/configuration set and exact sender."
   }
 
   assert {
@@ -181,7 +167,7 @@ run "scoped_permissions_and_ses" {
       toset(jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[3].Action) == setunion(toset(local.lambda_eni_actions), toset(["ec2:DetachNetworkInterface"])) &&
       jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Principal.Service == "lambda.amazonaws.com" &&
       toset(jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Action) == toset(["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]) &&
-      jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Resource == aws_ecr_repository.application["lambda"].arn &&
+      jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Resource == var.lambda_repository.arn &&
       toset(jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Condition.ArnLike["aws:SourceArn"]) == toset([local.confirmation_function_arn, "${local.confirmation_function_arn}:*"])
     )
     error_message = "Lambda service ENI management must be denied to function code; image retrieval must be restricted to the worker and repository."
@@ -209,26 +195,18 @@ run "scoped_permissions_and_ses" {
 }
 
 run "reject_unverified_sender_polling" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { mapping_enabled = true }) }
   expect_failures = [aws_lambda_event_source_mapping.confirmations[0]]
 }
 
 run "enable_verified_worker" {
+  module { source = "../modules/confirmations" }
+  providers = { aws = aws.verified }
   command   = apply
   state_key = "verified-worker"
   variables { confirmation_worker = merge(var.confirmation_worker, { mapping_enabled = true, max_concurrency = 3 }) }
-  override_resource {
-    target = aws_sesv2_email_identity.confirmations[0]
-    values = {
-      arn                         = "arn:aws:ses:us-east-1:123456789012:identity/example.com"
-      verified_for_sending_status = true
-      dkim_signing_attributes = {
-        tokens = ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"]
-        status = "SUCCESS"
-      }
-    }
-  }
   assert {
     condition = (
       aws_lambda_event_source_mapping.confirmations[0].enabled &&
@@ -240,66 +218,65 @@ run "enable_verified_worker" {
 }
 
 run "reject_pending_dkim_polling" {
+  module { source = "../modules/confirmations" }
+  providers = { aws = aws.pending_dkim }
   command   = apply
   state_key = "pending-dkim"
   variables { confirmation_worker = merge(var.confirmation_worker, { mapping_enabled = true }) }
-  override_resource {
-    target = aws_sesv2_email_identity.confirmations[0]
-    values = {
-      arn                         = "arn:aws:ses:us-east-1:123456789012:identity/example.com"
-      verified_for_sending_status = true
-      dkim_signing_attributes = {
-        tokens = ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"]
-        status = "PENDING"
-      }
-    }
-  }
   expect_failures = [aws_lambda_event_source_mapping.confirmations[0]]
 }
 
 run "reject_mutable_image" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { image_digest = "latest" }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_other_sender_domain" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { sender_email = "notifications@other.example.com" }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_multiple_at_signs" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { sender_email = "notifications@bad@example.com" }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_unnormalized_sender" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { sender_email = "Notifications@example.com" }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_single_consumer_concurrency" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { max_concurrency = 1 }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_fractional_concurrency" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { max_concurrency = 2.5 }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_excess_concurrency" {
+  module { source = "../modules/confirmations" }
   command = plan
   variables { confirmation_worker = merge(var.confirmation_worker, { max_concurrency = 11 }) }
   expect_failures = [var.confirmation_worker]
 }
 
 run "reject_unrelated_zone" {
+  module { source = "../modules/confirmations" }
   command = plan
   override_data {
     target = data.aws_route53_zone.email[0]

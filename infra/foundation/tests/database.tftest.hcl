@@ -18,9 +18,16 @@ mock_provider "aws" {
 
 variables {
   aws_account_id = "123456789012"
+
+  vpc_id              = "vpc-00000000000000001"
+  database_subnet_ids = ["subnet-00000000000000001", "subnet-00000000000000002"]
+  queue_arn           = "arn:aws:sqs:us-east-1:123456789012:mock-confirmations"
 }
 
+
+
 run "private_database_and_access" {
+  module { source = "../modules/database" }
   command = apply
 
   assert {
@@ -34,7 +41,7 @@ run "private_database_and_access" {
       length(aws_security_group.database.egress) == 0 &&
       aws_db_instance.main.backup_retention_period == 7 &&
       aws_db_instance.main.port == 5432 &&
-      toset(aws_db_subnet_group.main.subnet_ids) == toset([for subnet in aws_subnet.database : subnet.id]) &&
+      toset(aws_db_subnet_group.main.subnet_ids) == toset(var.database_subnet_ids) &&
       toset(aws_db_instance.main.vpc_security_group_ids) == toset([aws_security_group.database.id])
     )
     error_message = "RDS must be private, encrypted, backed up and use managed credentials."
@@ -70,7 +77,7 @@ run "private_database_and_access" {
       jsondecode(aws_iam_role_policy.bootstrap_secrets.policy).Statement[0].Resource == aws_db_instance.main.master_user_secret[0].secret_arn &&
       toset(jsondecode(aws_iam_role_policy.bootstrap_secrets.policy).Statement[1].Resource) == toset([for secret in aws_secretsmanager_secret.database : secret.arn]) &&
       jsondecode(aws_iam_role_policy.queue["relay"].policy).Statement[0].Action == ["sqs:SendMessage"] &&
-      jsondecode(aws_iam_role_policy.queue["consumer"].policy).Statement[0].Resource == aws_sqs_queue.confirmations.arn &&
+      jsondecode(aws_iam_role_policy.queue["consumer"].policy).Statement[0].Resource == var.queue_arn &&
       jsondecode(aws_iam_role.runtime["consumer"].assume_role_policy).Statement[0].Principal.Service == "lambda.amazonaws.com"
     )
     error_message = "Bootstrap and queue permissions must remain separate from runtime secret access."
@@ -85,7 +92,9 @@ run "private_database_and_access" {
   }
 }
 
+
 run "reject_other_database_major" {
+  module { source = "../modules/database" }
   command = plan
   variables {
     database_engine_version = "17.11"
@@ -93,7 +102,9 @@ run "reject_other_database_major" {
   expect_failures = [var.database_engine_version]
 }
 
+
 run "reject_unavailable_instance_class" {
+  module { source = "../modules/database" }
   command = plan
   override_data {
     target = data.aws_rds_orderable_db_instance.postgres
