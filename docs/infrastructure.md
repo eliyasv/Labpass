@@ -4,6 +4,11 @@ Terraform defines networking, repositories, queues, private RDS, runtime access,
 application hosting, frontend delivery and confirmation workloads in `us-east-1`.
 AWS resources have not been provisioned.
 
+The foundation composes five local modules: network, database, application,
+frontend and confirmations. Shared ECR repositories and SQS queues remain in
+the root. Provider configuration and state ownership remain at the root.
+[Module interfaces](../infra/modules/README.md).
+
 ## Network boundaries
 
 A `10.42.0.0/16` VPC spans two standard availability zones discovered in the
@@ -66,8 +71,10 @@ Terraform requires a target account ID and enforces it through the AWS provider'
 
 Terraform 1.15.x and AWS provider 6.68.0 are pinned. The provider lockfile records
 signed package checksums. State, plans, provider binaries and local variable
-files are excluded from Git. The current root uses local state; shared deployment
-requires encrypted, versioned remote state with locking and scoped access.
+files are excluded from Git. The foundation uses a partial S3 backend; the separate
+delivery bootstrap defines encrypted, versioned state storage with scoped access
+and S3 locking. The bootstrap's own local state must be preserved separately.
+Initialization and migration: [CI/CD and release security](delivery.md).
 
 ## Database and runtime access
 
@@ -84,10 +91,11 @@ for privileges, configuration and commands.
 
 ## Verification and remaining integration
 
-Formatting and provider-schema validation passed. Forty-two mocked Terraform tests
+Formatting and provider-schema validation passed. Forty-eight mocked foundation tests
 verify topology, routing isolation, default-group rules, repository settings,
 queue/database configuration, hosting, frontend delivery, confirmation delivery,
-scoped runtime access and invalid configuration.
+scoped runtime access, combined module integration and invalid configuration.
+Seven delivery-root tests cover state and release permissions.
 Actual AWS connectivity, authorization and TLS handshakes remain unverified.
 
 Hosting uses separate API/relay ASGs and explicit operator launch templates with
@@ -106,9 +114,10 @@ zone, suppression and configuration-set delivery metrics. Mapping activation
 requires verified SES/DKIM; database bootstrap and account/recipient checks remain
 operator prerequisites. See [Confirmation worker deployment](confirmation-worker.md).
 
-Workflows and alarms remain to be integrated. CloudFront/S3 authorization, DNS
+Workflow configuration is implemented; live releases and alarms remain pending.
+CloudFront/S3 authorization, DNS
 propagation, certificate issuance, Lambda image/VPC/IAM access, SES delivery and
 SQS retry/redrive require deployment verification. Hosted-zone ownership and
 registrar delegation are external prerequisites.
 See [Terraform commands](../infra/README.md) and
-[frontend verification](milestone-5d.md) and [worker verification](milestone-5e.md).
+[verification evidence](verification.md#infrastructure-and-release-checks).

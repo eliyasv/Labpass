@@ -30,7 +30,8 @@ retrying a successful request with the same key returns the original booking.
 | Local environment | Docker Compose, ElasticMQ, Mailpit |
 | Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
 | Infrastructure | Terraform: Route 53, CloudFront, S3, VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
-| Planned delivery and load testing | GitHub Actions with AWS OIDC, k6 |
+| Delivery | GitHub Actions, AWS OIDC, Trivy, Gitleaks, Bandit, dependency audits and SBOMs |
+| Planned load testing | k6 |
 
 ## Run locally
 
@@ -91,6 +92,10 @@ with private EC2 instances across two availability zones, private RDS, SQS,
 Lambda and SES. See the [architecture guide](docs/architecture.md) for the cloud
 diagram, network paths and design trade-offs.
 
+Terraform composes five local modules for networking, database access, application
+hosting, frontend delivery and confirmations. See the
+[module interfaces](infra/modules/README.md).
+
 ## Testing
 
 With the local stack running and the sample workshop seeded:
@@ -108,7 +113,7 @@ Backend tests require Python 3.14 and PostgreSQL 18, with `initdb`, `pg_ctl` and
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r backend/requirements.lock -r backend/requirements-dev.lock
+.venv/bin/python -m pip install --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
 bash scripts/test-local.sh -q
 ```
 
@@ -147,7 +152,11 @@ adapters, API secret loading and Lambda packaging are tested offline. Terraform
 defines networking, image repositories, queues, private RDS, scoped runtime access,
 API/relay hosting behind an HTTPS ALB, private S3 frontend delivery through
 CloudFront and Route 53, and a private Lambda/SQS/SES confirmation workload.
-AWS deployment, GitHub Actions, load testing and alarms remain pending.
+GitHub Actions defines CI security gates and protected releases to existing
+workloads. AWS deployment, GitHub protection settings, live release verification,
+load testing and alarms remain pending. High/critical image vulnerabilities block
+release; the current API and Lambda release images pass scanning without
+vulnerability exceptions.
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
@@ -156,6 +165,8 @@ AWS deployment, GitHub Actions, load testing and alarms remain pending.
 - [Application hosting](docs/application-hosting.md)
 - [Frontend delivery](docs/frontend-delivery.md)
 - [Confirmation worker deployment](docs/confirmation-worker.md)
+- [CI/CD and release security](docs/delivery.md)
 - [Terraform](infra/README.md)
-- [Project checklist](docs/checklist.md)
-- [Technical documentation and verification](docs/README.md)
+- [Project status](docs/checklist.md)
+- [Verification evidence](docs/verification.md)
+- [Technical documentation](docs/README.md)

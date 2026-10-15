@@ -118,7 +118,9 @@ Retain old hashed assets for browsers running an earlier release. HTML does not
 require an invalidation because edge caching is disabled. Content-type metadata
 must match the uploaded files; publication uses the AWS CLI's MIME detection for
 assets. Serialize releases so older HTML cannot overwrite a newer deployment.
-CI/CD, artifact retention and automated publication remain pending.
+The [release workflow](delivery.md#release-boundaries) implements serialized
+publication in this order. Live publication remains unverified; an asset-retention
+cleanup policy is not configured.
 
 ## Deployment verification
 

@@ -101,8 +101,9 @@ TypeScript response/input types are generated from the actual FastAPI OpenAPI
 schema. A contract check compares that schema with the exported snapshot and
 regenerates declarations in memory to detect drift. Types are compile-time checks,
 not runtime JSON validation. See [OpenAPI TypeScript API](https://openapi-ts.dev/node).
-The npm lock includes package integrity hashes; Python artifact hashes and base
-image digest pinning remain future delivery work.
+The npm lock includes package integrity hashes. Python locks contain artifact
+hashes; release base images use pinned digests. CI audits dependencies and scans
+release images before publication. See [Delivery](delivery.md).
 
 Vite development proxies same-origin requests and preserves Origin. The native
 backend must explicitly allow the Vite browser origin (5173); Compose uses the
@@ -320,10 +321,13 @@ per-AZ capacity is an alternative for availability requirements. See
 No cloud resources have been provisioned. Multi-AZ database failover remains a
 separate availability choice rather than a consequence of two-AZ subnet placement.
 
-GitHub Actions will authenticate with AWS using OIDC constrained to the repository
-and deployment environment. Releases will deploy ECR digests, run one migration
-step, prevent stale concurrent releases, and smoke-test through CloudFront.
-Backward-compatible migrations will support rolling updates; changing stored
+GitHub Actions release jobs use OIDC constrained to the repository and protected
+environment. CI runs without AWS credentials and gates releases on tests and
+security scans. The release workflow publishes scanned artifacts, saves a private
+runtime update plan, runs one migration command, waits for fleet refreshes and
+smoke-tests through CloudFront. GitHub protections and live execution remain
+unverified. Configuration and boundaries: [CI/CD and release security](delivery.md).
+Rolling updates require backward-compatible migrations; changing stored
 data can make an image rollback insufficient and require a forward fix or restore.
 
 CloudWatch work will cover booking latency/errors, healthy ALB targets, database

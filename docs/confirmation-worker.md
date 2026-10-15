@@ -114,6 +114,6 @@ aws lambda get-event-source-mapping --region us-east-1 \
   --uuid "${LABPASS_CONFIRMATION_MAPPING_UUID:?Set the worker output mapping UUID}"
 ```
 
-Offline verification: [Milestone 5E](milestone-5e.md).
+Offline verification: [Infrastructure and release checks](verification.md#infrastructure-and-release-checks).
 AWS image retrieval, VPC/IAM authorization, SES verification/delivery, alias updates
 and actual SQS partial-failure/redrive behaviour remain unverified.
