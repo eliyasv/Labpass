@@ -1,7 +1,8 @@
 # Infrastructure design
 
-Terraform defines networking, repositories, queues, private RDS, runtime access
-and optional application hosting in `us-east-1`. AWS resources have not been provisioned.
+Terraform defines networking, repositories, queues, private RDS, runtime access,
+application hosting and optional frontend delivery in `us-east-1`. AWS resources
+have not been provisioned.
 
 ## Network boundaries
 
@@ -19,6 +20,7 @@ group has no ingress or egress rules. Separate API, relay, consumer, migration
 and bootstrap groups permit PostgreSQL access to the database group and HTTPS
 egress. When hosting is enabled, the API accepts port 8000 only from the ALB
 group; the ALB accepts HTTPS only from CloudFront origin-facing addresses.
+API forwarding additionally requires the configured origin-verification token.
 
 The NAT gateway resides in the first public subnet. Both application zones use
 it, creating a shared egress dependency and potential cross-AZ transfer costs.
@@ -86,6 +88,7 @@ Formatting and provider-schema validation passed. Twenty-eight mocked Terraform 
 verify topology, routing isolation, default-group rules, repository settings,
 queue/database configuration, hosting, confirmation delivery, scoped runtime access
 and invalid configuration.
+queue/database configuration, hosting, frontend delivery, scoped access and invalid configuration.
 Actual AWS connectivity, authorization and TLS handshakes remain unverified.
 
 Hosting uses separate API/relay ASGs and explicit operator launch templates with
@@ -101,5 +104,14 @@ operator prerequisites. See [Confirmation worker deployment](confirmation-worker
 CloudFront/S3/OAC, DNS/ACM, distribution-specific origin validation,
 workflows and alarms remain to be integrated. Real Lambda image/VPC/IAM access,
 SES delivery and SQS retry/redrive require deployment verification.
+Frontend delivery uses private versioned S3 with SigV4 OAC, CloudFront, separate
+public/origin ACM certificates and Route 53 records in an existing authoritative
+public zone. HTML/API caching is disabled; versioned assets may cache for one
+year. The ALB token supports overlap during rotation and is stored in Terraform
+state. Configuration: [Frontend delivery](frontend-delivery.md).
+
+Lambda/SES deployment permissions, workflows and alarms remain to be integrated.
+CloudFront/S3 authorization, DNS propagation and certificate issuance require AWS
+verification. Hosted-zone ownership and registrar delegation are external prerequisites.
 See [Terraform commands](../infra/README.md) and
-[hosting verification](milestone-5c.md).
+[frontend verification](milestone-5d.md).

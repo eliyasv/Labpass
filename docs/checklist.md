@@ -2,6 +2,7 @@
 
 Updated 15 October 2026. Local application and background processing are complete.
 Cloud workers, database access, application hosting and confirmation-workload
+Cloud workers, database access, application hosting and frontend-delivery
 configuration are verified offline; AWS deployment remains pending.
 Verification records: [Technical documentation](README.md#verification-records).
 
@@ -132,11 +133,21 @@ Verification records: [Technical documentation](README.md#verification-records).
 - [x] Configuration-set suppression and delivery/bounce/complaint metrics.
 - [x] SES/DKIM activation guards and offline Terraform coverage.
 - [ ] Verify deployed image retrieval, VPC/IAM, SES sandbox/quotas/delivery, alias updates and SQS retries/DLQ.
+## Milestone 5D: frontend delivery
+
+- [x] Private encrypted/versioned S3 with blocked public access, disabled ACLs and distribution-scoped OAC.
+- [x] CloudFront static origin, fresh HTML and cached versioned assets.
+- [x] HTTPS-only API forwarding with caching disabled and viewer headers/cookies/query strings preserved except Host.
+- [x] Existing public Route 53 zone integration, CloudFront A/AAAA aliases and ALB origin DNS.
+- [x] Separate DNS-validated ACM viewer/origin certificates and matching browser Origin validation.
+- [x] ALB origin token with optional previous-token overlap for rotation; documented state sensitivity.
+- [x] Browser response headers, unchanged API errors and explicit frontend publication order.
+- [x] Fourteen new mocked delivery tests; full suite 28 passed; frontend contract/build and 27 script checks passed.
+- [ ] Verify deployed DNS, certificates, S3/OAC access, origin restrictions and browser flows through CloudFront.
 
 ## Remaining milestones 5–6: workloads, delivery and operations
 
-- [ ] Terraform for private S3/OAC, CloudFront API forwarding/no cache and TLS.
-- [ ] Origin DNS/ACM and distribution-specific ALB access validation.
+- [ ] Confirm authoritative hosted-zone delegation and verify deployed DNS/TLS/origin access.
 - [ ] Verify deployed RDS engine/class availability, private reachability and TLS.
 - [ ] Scoped GitHub OIDC trust and release permissions.
 - [ ] Distributed login/registration abuse controls, email verification/recovery and session cleanup.

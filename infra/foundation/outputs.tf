@@ -74,5 +74,15 @@ output "confirmation_worker" {
     ses_verified      = aws_sesv2_email_identity.confirmations[0].verified_for_sending_status
     configuration_set = aws_sesv2_configuration_set.confirmations[0].configuration_set_name
     dkim_record_names = [for record in aws_route53_record.email_dkim : record.name]
+output "frontend_delivery" {
+  description = "Frontend URL, publication bucket, distribution and origin DNS; null when disabled."
+  value = local.frontend_enabled ? {
+    url                    = "https://${var.frontend.domain_name}"
+    bucket_name            = aws_s3_bucket.frontend[0].id
+    distribution_id        = aws_cloudfront_distribution.site[0].id
+    distribution_domain    = aws_cloudfront_distribution.site[0].domain_name
+    origin_domain          = aws_route53_record.origin[0].fqdn
+    viewer_certificate_arn = aws_acm_certificate_validation.site["viewer"].certificate_arn
+    origin_certificate_arn = aws_acm_certificate_validation.site["origin"].certificate_arn
   } : null
 }

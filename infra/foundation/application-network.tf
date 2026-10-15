@@ -78,7 +78,7 @@ resource "aws_lb_listener" "api_https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.application.origin_certificate_arn
+  certificate_arn   = local.frontend_enabled ? aws_acm_certificate_validation.site["origin"].certificate_arn : var.application.origin_certificate_arn
 
   default_action {
     type = "fixed-response"
@@ -97,7 +97,14 @@ resource "aws_lb_listener_rule" "api" {
 
   condition {
     path_pattern {
-      values = ["/api/*"]
+      values = ["/api", "/api/*"]
+    }
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-LabPass-Origin"
+      values           = concat([var.origin_verify_token], var.origin_verify_previous_token == null ? [] : [var.origin_verify_previous_token])
     }
   }
 
