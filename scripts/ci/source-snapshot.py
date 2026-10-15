@@ -12,9 +12,11 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     destination = args.destination.resolve()
+    # Keep the snapshot outside its own input tree.
     if destination.is_relative_to(root):
         raise SystemExit("Place the scan snapshot outside the checkout")
     destination.mkdir(parents=True, exist_ok=False)
+    # Include tracked and new source files while respecting Git's ignore rules.
     names = (
         subprocess.check_output(
             ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],

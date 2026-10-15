@@ -20,6 +20,7 @@ TF = ["terraform", f"-chdir={ROOT / 'infra/foundation'}"]
 REGION = "us-east-1"
 HEX_DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 ENVIRONMENTS = ("labpass-publish", "labpass-plan", "labpass-apply")
+# Release plans may update only these runtime resources and attributes.
 UPDATE_FIELDS = {
     **{
         f'module.application.aws_launch_template.runtime["{name}"]': {
@@ -88,6 +89,7 @@ def github(path):
 
 
 def ensure_current():
+    # Repeat at release boundaries so a newer dev commit invalidates a waiting run.
     if required("GITHUB_REF") != "refs/heads/dev":
         raise ValueError("Releases require the dev branch")
     if required("GITHUB_RUN_ATTEMPT") != "1":
@@ -120,6 +122,7 @@ def check_environment(settings, branches):
 
 
 def preflight():
+    # Check GitHub protections before any job requests AWS credentials.
     ensure_current()
     repository = required("GITHUB_REPOSITORY", r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
     for environment in ENVIRONMENTS:
@@ -166,6 +169,7 @@ def publish():
             + required("GITHUB_RUN_ID", r"[0-9]+")
         )
         bundle = Path(required("RELEASE_BUNDLE"))
+        # Load the scanned CI artifacts and publish them under this commit/run tag.
         for image in ("api", "lambda"):
             ensure_current()
             run(["docker", "load", "--input", str(bundle / f"{image}.tar")])
@@ -240,6 +244,7 @@ def config_hash(config):
 
 
 def validate_plan(plan):
+    # Reject creation, deletion, replacement and unrelated configuration changes.
     if plan.get("errored", False) or not plan.get("complete", True):
         raise ValueError("Terraform did not produce an applyable plan")
     summary = []
@@ -320,6 +325,7 @@ def plan():
         )
         addresses = validate_plan(parsed)
         plan_bytes = saved.read_bytes()
+        # Bind the saved bytes to this commit, workflow run and complete configuration.
         manifest = {
             "schema": 1,
             "sha": required("GITHUB_SHA"),
@@ -333,6 +339,7 @@ def plan():
         if s3.get_bucket_versioning(Bucket=bucket).get("Status") != "Enabled":
             raise ValueError("Release plans require a private versioned bucket")
         prefix = f"plans/{required('GITHUB_RUN_ID', r'[0-9]+')}/"
+        # Private versioned objects carry sensitive plan inputs between protected jobs.
         for name, content in (("plan", plan_bytes), ("manifest", manifest_bytes)):
             result = s3.put_object(
                 Bucket=bucket,
@@ -380,6 +387,7 @@ def verify_manifest(manifest_bytes, plan_bytes, config):
 
 
 def migrate(config):
+    # Verify the private operator host's identity before invoking the fixed SSM document.
     instance = required("MIGRATION_INSTANCE_ID", r"i-[0-9a-f]{17}")
     details = client("ec2").describe_instances(InstanceIds=[instance])["Reservations"][
         0
@@ -427,6 +435,7 @@ def migrate(config):
 
 
 def wait_fleets(outputs):
+    # Require completed refreshes and healthy instances on the selected template versions.
     asg = client("autoscaling")
     names = [outputs["api_asg_name"], outputs["relay_asg_name"]]
     deadline = time.monotonic() + 1800
@@ -481,6 +490,7 @@ def publish_frontend(config):
     if not (bundle / "index.html").is_file() or not (bundle / "assets").is_dir():
         raise ValueError("Frontend release artifact is incomplete")
     bucket = f"{config['name_prefix']}-{config['aws_account_id']}-frontend"
+    # Upload assets first so the new index never references files still being uploaded.
     run(
         [
             "aws",
@@ -538,6 +548,7 @@ def apply():
     init_backend()
     s3 = client("s3")
     objects = {}
+    # Fetch the plan job's exact object versions, then check their manifest and checksums.
     for name in ("plan", "manifest"):
         result = s3.get_object(
             Bucket=required("STATE_BUCKET"),
@@ -554,8 +565,10 @@ def apply():
             json.loads(run(TF + ["show", "-json", str(saved)], capture=True).stdout)
         )
         ensure_current()
+        # A failed migration stops the release before any runtime rollout begins.
         migrate(config)
         ensure_current()
+        # Apply the saved plan rather than generating a new plan after approval.
         run(TF + ["apply", "-input=false", "-lock-timeout=60s", str(saved)])
         outputs = json.loads(
             run(TF + ["output", "-json", "application_hosting"], capture=True).stdout
@@ -569,6 +582,7 @@ def apply():
             or function.get("LastUpdateStatus", "Successful") != "Successful"
         ):
             raise ValueError("Lambda alias is not ready")
+        # Publish the UI only after backend readiness, then probe the public HTTPS origin.
         publish_frontend(config)
         origin = config["application"]["public_origin"]
         if not re.fullmatch(r"https://[a-z0-9.-]+", origin):

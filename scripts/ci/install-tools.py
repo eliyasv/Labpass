@@ -12,9 +12,11 @@ from pathlib import Path
 
 
 def binary_from_archive(data, name, expected_hash):
+    # Verify downloaded bytes against the reviewed pin before parsing the archive.
     if hashlib.sha256(data).hexdigest() != expected_hash:
         raise ValueError("security tool checksum mismatch")
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        # Read only the named regular file; never extract archive-controlled paths.
         member = archive.getmember(name)
         if not member.isfile():
             raise ValueError("security tool must be a regular file")

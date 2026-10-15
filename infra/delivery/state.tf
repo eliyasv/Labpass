@@ -3,10 +3,12 @@ locals {
   state_key         = "foundation/terraform.tfstate"
 }
 
+# Store foundation state and release plans; this root retains its own separate state.
 resource "aws_s3_bucket" "state" {
   bucket        = local.state_bucket_name
   force_destroy = false
   lifecycle {
+    # Block Terraform destruction of the state bucket while this resource is configured.
     prevent_destroy = true
   }
 }
@@ -35,6 +37,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
   }
 }
 
+# Keep prior state versions for recovery and address saved plans by exact version ID.
 resource "aws_s3_bucket_versioning" "state" {
   bucket = aws_s3_bucket.state.id
   versioning_configuration {
@@ -42,6 +45,7 @@ resource "aws_s3_bucket_versioning" "state" {
   }
 }
 
+# Expire temporary release plans only; foundation state versions remain outside this prefix.
 resource "aws_s3_bucket_lifecycle_configuration" "plans" {
   bucket = aws_s3_bucket.state.id
   rule {
@@ -55,6 +59,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "plans" {
   depends_on = [aws_s3_bucket_versioning.state]
 }
 
+# Deny unencrypted transport even when a caller has object permissions.
 resource "aws_s3_bucket_policy" "state" {
   bucket = aws_s3_bucket.state.id
   policy = jsonencode({
