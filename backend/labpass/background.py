@@ -100,7 +100,8 @@ def consume_once(sessions, queue, sender):
 
 
 def health(settings, sessions, queue, role):
-    heartbeat = Path(f"/tmp/labpass-{role}-heartbeat")
+    # Each worker runs alone in a container with a private /tmp; this file holds no data.
+    heartbeat = Path(f"/tmp/labpass-{role}-heartbeat")  # nosec B108
     if not heartbeat.exists() or time.time() - heartbeat.stat().st_mtime > 60:
         raise RuntimeError("worker_heartbeat_stale")
     with sessions() as session:
@@ -199,7 +200,7 @@ def main():
                     publish_batch(sessions, queue, limit=5)
                 else:
                     consume_once(sessions, queue, sender)
-                Path(f"/tmp/labpass-{args.action}-heartbeat").touch()
+                Path(f"/tmp/labpass-{args.action}-heartbeat").touch()  # nosec B108
             except Exception as exc:
                 logger.error(
                     json.dumps(

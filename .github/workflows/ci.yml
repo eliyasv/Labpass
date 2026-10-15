@@ -1,0 +1,251 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Install verified security tools
+        run: |
+          python -m venv .security-venv
+          .security-venv/bin/pip install --require-hashes -r security/requirements.lock
+          python scripts/ci/install-tools.py "$RUNNER_TEMP/labpass-tools"
+          echo "$RUNNER_TEMP/labpass-tools" >> "$GITHUB_PATH"
+      - name: Scan Git history and current source for secrets
+        run: |
+          gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts=--all
+          python scripts/ci/source-snapshot.py "$RUNNER_TEMP/labpass-source"
+          gitleaks dir "$RUNNER_TEMP/labpass-source" --config .gitleaks.toml --redact --no-banner
+      - name: Python static analysis and dependency audit
+        run: |
+          .security-venv/bin/bandit -r backend/labpass scripts -x scripts/tests -ll -ii
+          .security-venv/bin/pip-audit -r backend/requirements.lock --no-deps --disable-pip --strict
+          .security-venv/bin/pip-audit -r backend/requirements-dev.lock --no-deps --disable-pip --strict
+          .security-venv/bin/pip-audit -r security/requirements.lock --no-deps --disable-pip --strict
+      - name: JavaScript dependency audit
+        run: |
+          npm --prefix frontend ci --ignore-scripts --no-audit
+          npm --prefix frontend audit --audit-level=high
+      - name: Terraform and container configuration scan
+        run: |
+          trivy config --severity HIGH,CRITICAL --exit-code 1 \
+            --tf-vars security/fixtures/scan-inputs.hcl \
+            --ignorefile security/trivy-exceptions.yaml "$RUNNER_TEMP/labpass-source"
+      - name: Workflow validation and security policy tests
+        run: |
+          actionlint -shellcheck=
+          .security-venv/bin/python -m unittest discover -s security/tests -v
+
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Install verified dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
+          .venv/bin/pip check
+      - name: Lint and script regressions
+        run: |
+          .venv/bin/ruff check backend scripts
+          .venv/bin/ruff format --check backend scripts
+          .venv/bin/python -m pytest -q scripts/tests
+      - name: Real PostgreSQL transaction suite
+        run: |
+          docker build --platform linux/amd64 --target test -t labpass-api:test backend
+          task_socket="$RUNNER_TEMP/labpass-postgres"
+          mkdir "$task_socket"
+          chmod 0777 "$task_socket"
+          trap 'docker rm -f labpass-ci-postgres >/dev/null' EXIT
+          docker run -d --name labpass-ci-postgres --network none \
+            -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=labpass_test \
+            -v "$task_socket:/var/run/postgresql" postgres:18 \
+            -c listen_addresses='' -c max_connections=160
+          for task_attempt in {1..60}; do
+            if docker exec labpass-ci-postgres pg_isready -U postgres -d labpass_test; then break; fi
+            sleep 1
+          done
+          docker run --rm --network none --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            -v "$task_socket:/run/postgresql" \
+            -e 'TEST_DATABASE_URL=postgresql+psycopg://postgres@/labpass_test?host=/run/postgresql' \
+            labpass-api:test python -m pytest -q -p no:cacheprovider
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      LABPASS_PORT: '8002'
+      LABPASS_MAIL_PORT: '8026'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Build and contract checks
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --require-hashes -r backend/requirements.lock
+          npm --prefix frontend ci --ignore-scripts --no-audit
+          npm --prefix frontend run check-contract
+          npm --prefix frontend run format:check
+          npm --prefix frontend run build
+      - name: Real-backend browser and confirmation checks
+        run: |
+          export PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/playwright"
+          task_root="$PWD"
+          task_project="labpass-m3-verification-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export POSTGRES_PASSWORD
+          POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          trap 'cd "$task_root"; docker compose --env-file /dev/null -p "$task_project" down --volumes' EXIT
+          docker compose --env-file /dev/null -p "$task_project" up --build --wait --wait-timeout 180
+          docker compose --env-file /dev/null -p "$task_project" exec -T api python -m labpass.seed
+          python scripts/smoke-local.py
+          docker compose --env-file /dev/null -p "$task_project" exec -T consumer python < scripts/smoke-background.py
+          cd frontend
+          npx --no-install playwright install --with-deps chromium --only-shell
+          LABPASS_E2E_URL=http://127.0.0.1:8002 \
+            LABPASS_TEST_API_CONTAINER="$task_project-api-1" npm test
+          cd ..
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 3
+          if-no-files-found: error
+
+  terraform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.15.9'
+          terraform_wrapper: false
+      - name: Validate and test both Terraform roots without AWS
+        run: |
+          terraform fmt -check -recursive infra
+          for task_root in infra/foundation infra/delivery; do
+            terraform -chdir="$task_root" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="$task_root" validate
+            terraform -chdir="$task_root" test
+          done
+
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, lambda]
+    env:
+      TASK_IMAGE: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install verified scanners
+        run: |
+          python3 scripts/ci/install-tools.py "$RUNNER_TEMP/labpass-tools"
+          echo "$RUNNER_TEMP/labpass-tools" >> "$GITHUB_PATH"
+      - name: Build and scan the release image
+        run: |
+          task_dockerfile=backend/Dockerfile
+          if [[ "$TASK_IMAGE" == lambda ]]; then task_dockerfile=backend/Dockerfile.lambda; fi
+          docker build --pull --platform linux/amd64 --target release -f "$task_dockerfile" -t "labpass-$TASK_IMAGE:ci" backend
+          docker run --rm --network none --read-only --user 10001:10001 \
+            --entrypoint python "labpass-$TASK_IMAGE:ci" -c \
+            'import importlib.util, os; assert os.getuid() != 0; assert importlib.util.find_spec("pip") is None; assert importlib.util.find_spec("ensurepip") is None; import argon2, boto3, psycopg, pydantic_core; assert not os.path.exists("/usr/local/bin/aws-lambda-rie")'
+          mkdir security-reports
+          trivy image --format cyclonedx --output "security-reports/$TASK_IMAGE.cdx.json" "labpass-$TASK_IMAGE:ci"
+          trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 \
+            --ignorefile security/trivy-exceptions.yaml "labpass-$TASK_IMAGE:ci"
+          mkdir release-image
+          docker save "labpass-$TASK_IMAGE:ci" -o "release-image/$TASK_IMAGE.tar"
+      - name: Offline Lambda runtime verification
+        if: matrix.image == 'lambda'
+        run: |
+          docker build --platform linux/amd64 --target local -f backend/Dockerfile.lambda -t labpass-lambda:local backend
+          trap 'docker rm -f labpass-ci-lambda >/dev/null' EXIT
+          docker run -d --name labpass-ci-lambda --network none --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m --user 10001:10001 labpass-lambda:local
+          docker exec -i labpass-ci-lambda python < scripts/smoke-lambda.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && hashFiles('security-reports/*.json') != ''
+        with:
+          name: sbom-${{ matrix.image }}
+          path: security-reports/
+          retention-days: 3
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+        with:
+          name: image-${{ matrix.image }}
+          path: release-image/
+          retention-days: 3
+          if-no-files-found: error
+
+  ci-gate:
+    if: always()
+    needs: [security, backend, frontend, terraform, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every check to succeed
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          checks = json.loads(os.environ['CHECK_RESULTS'])
+          failed = [name for name, result in checks.items() if result['result'] != 'success']
+          if failed:
+              raise SystemExit('Required checks failed or skipped: ' + ', '.join(failed))
+          PY

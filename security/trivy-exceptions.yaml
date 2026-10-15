@@ -1,0 +1,23 @@
+# Scoped exceptions require a technical justification and an expiry date.
+misconfigurations:
+  - id: DS-0002
+    paths: [backend/Dockerfile.lambda]
+    statement: AWS Lambda supplies the least-privileged runtime user; EC2 images explicitly use UID 10001. See https://docs.aws.amazon.com/lambda/latest/dg/images-create.html.
+    expired_at: 2026-12-31
+  - id: AWS-0132
+    paths: [infra/delivery/state.tf, infra/modules/frontend/frontend-storage.tf]
+    statement: State uses S3-managed AES256 encryption, TLS-only access, versioning, public-access blocking and separate scoped role policies. Customer-managed key lifecycle is outside this stack.
+    expired_at: 2026-12-31
+  - id: AWS-0053
+    paths: [infra/modules/application/application-network.tf]
+    statement: The internet-facing ALB is the CloudFront HTTPS origin. Ingress is restricted to the AWS CloudFront origin prefix list and requests require the shared origin header; application hosts remain private.
+    expired_at: 2026-12-31
+  - id: AWS-0011
+    paths: [infra/modules/frontend/frontend-delivery.tf]
+    statement: No WAF ACL is provisioned. Managed request filtering and edge rate limiting remain an explicit infrastructure security gap; authentication and Origin checks do not replace these controls.
+    expired_at: 2026-12-31
+  - id: AWS-0104
+    paths: [infra/modules/database/database.tf]
+    statement: Runtime security groups permit outbound TCP 443 for AWS APIs and image retrieval through NAT; PostgreSQL traffic uses destination security groups. No unrestricted all-protocol egress is allowed.
+    expired_at: 2026-12-31
+vulnerabilities: []
