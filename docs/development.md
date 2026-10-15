@@ -26,7 +26,7 @@ Install Python 3.14 and PostgreSQL 18 first, then install the locked dependencie
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r backend/requirements.lock -r backend/requirements-dev.lock
+.venv/bin/python -m pip install --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
 .venv/bin/python -m pip check
 ```
 
@@ -208,23 +208,40 @@ failed deliveries or expired leases; sent records and live leases are refused.
 `replay-dlq` returns up to ten queued records. Repair malformed events before
 replay. Manual recovery can resend mail whose previous acceptance is uncertain.
 
-For an isolated poison-message/redrive exercise, see
-[the background pipeline report](milestone-4.md). Cloud runtime configuration,
-permissions and the offline Lambda smoke are in [AWS workers](aws-workers.md).
+### Isolated DLQ exercise
+
+The following commands deliberately insert a poison message into a separate
+Compose project. Use available loopback ports; the message remains in that test
+DLQ for inspection.
+
+```bash
+LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 docker compose \
+  -p labpass-dlq-verification up --build --wait --wait-timeout 120
+LABPASS_PORT=8003 LABPASS_MAIL_PORT=8026 docker compose \
+  -p labpass-dlq-verification exec -T -e LABPASS_DLQ_CHECK=true consumer python \
+  < scripts/check-background-dlq.py
+```
+
+Expected output: `DLQ check passed: poison message redriven after bounded receives; retained for inspection`.
+The check has an 80-second deadline and requires `LABPASS_DLQ_CHECK=true`.
+
+Cloud runtime configuration, permissions and the offline Lambda smoke:
+[AWS workers](aws-workers.md).
 
 Cloud database configuration, role grants and controlled migrations are documented
 in [Database runtime](database-runtime.md).
 
 ## Dependency updates
 
-Python locks pin versions for CPython 3.14 on Linux without artifact hashes.
-Local container base tags are mutable. The npm lock includes package integrity
-hashes. Update locks, install dependencies and run the affected checks:
+Python locks pin versions and artifact hashes for CPython 3.14 on Linux. Release
+container bases use pinned digests; the Lambda OS repository release is pinned
+separately. The npm lock includes package integrity hashes. Update the relevant
+pins and locks, install dependencies and run the affected checks:
 
 ```bash
-.venv/bin/pip-compile --upgrade --strip-extras -o backend/requirements.lock backend/requirements.in
-.venv/bin/pip-compile --upgrade --strip-extras --allow-unsafe -o backend/requirements-dev.lock backend/requirements-dev.in
-.venv/bin/python -m pip install -r backend/requirements.lock -r backend/requirements-dev.lock
+.venv/bin/pip-compile --upgrade --generate-hashes --strip-extras -o backend/requirements.lock backend/requirements.in
+.venv/bin/pip-compile --upgrade --generate-hashes --strip-extras --allow-unsafe -o backend/requirements-dev.lock backend/requirements-dev.in
+.venv/bin/python -m pip install --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
 ```
 
 Alembic controls schema changes. Migration and data rollback limits are documented

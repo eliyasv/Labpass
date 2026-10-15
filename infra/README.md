@@ -1,6 +1,11 @@
 # Infrastructure
 
-Terraform root: `foundation/`. Region: `us-east-1`.
+Terraform roots: `foundation/` for workloads; `delivery/` for OIDC roles and
+remote state storage. Region: `us-east-1`.
+
+The foundation composes local `network`, `database`, `application`, `frontend`
+and `confirmations` modules. Shared ECR and SQS resources remain in the root.
+[Module interfaces](modules/README.md).
 
 ## Resources
 
@@ -33,10 +38,12 @@ Terraform root: `foundation/`. Region: `us-east-1`.
 Run from the repository root:
 
 ```bash
-terraform -chdir=infra/foundation init -backend=false -input=false
-terraform -chdir=infra/foundation fmt -check -recursive
-terraform -chdir=infra/foundation validate
-terraform -chdir=infra/foundation test
+terraform fmt -check -recursive infra
+for task_root in infra/foundation infra/delivery; do
+  terraform -chdir="$task_root" init -backend=false -input=false -lockfile=readonly
+  terraform -chdir="$task_root" validate
+  terraform -chdir="$task_root" test
+done
 ```
 
 Tests use a mocked AWS provider and require no AWS credentials.
@@ -79,17 +86,21 @@ Confirmation configuration and activation:
 
 ## State
 
-Backend: local. State, saved plans, local variable files and provider binaries
-are excluded from Git. The provider lockfile is tracked.
+The foundation declares a partial S3 backend. Configure its bucket/key, encryption
+and S3 locking before real plans. The delivery bootstrap uses separate local state
+that must be preserved outside Git. State, saved plans, local variable files and
+provider binaries are ignored; provider lockfiles are tracked.
 
 Password values are created by RDS and the SDK bootstrap, outside Terraform.
 The CloudFront/ALB origin token is stored in state and saved plans despite its
-sensitive input flag. Restrict their access; shared deployment requires encrypted,
-versioned remote state and locking.
+sensitive input flag. Release plans use private versioned S3 and are not uploaded
+to GitHub artifacts. Backend initialization, state migration and role setup:
+[CI/CD and release security](../docs/delivery.md).
 
 ## Integration status
 
-Release workflows and alarms remain pending. CloudFront/S3/OAC, authoritative
+Release workflow code is implemented; GitHub/AWS configuration, live releases and
+alarms remain pending. CloudFront/S3/OAC, authoritative
 DNS, certificate issuance, EC2 bootstrap, database access, ALB TLS/health,
 Lambda/SQS permissions, SES verification/delivery and alias updates have not
 been verified in AWS.

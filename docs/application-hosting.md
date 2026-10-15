@@ -127,7 +127,7 @@ aws elbv2 describe-target-health --region us-east-1 \
 
 AWS boot/package retrieval, SSM registration, ECR/logging authorization, ALB TLS,
 target registration, scaling and refresh behaviour remain unverified. Offline
-verification is recorded in [Milestone 5C](milestone-5c.md).
+verification is recorded in [Verification](verification.md#database-and-host-boundaries).
 
 References: [ALB origin restriction](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html),
 [AL2023 IMDSv2](https://docs.aws.amazon.com/linux/al2023/ug/imdsv2.html),

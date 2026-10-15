@@ -116,4 +116,4 @@ Expected outputs: `Database roles, migrations and grants applied` for bootstrap;
 `Database migrations applied` for subsequent migrations. Runtime services never
 run migrations at startup. Serialize deployment migration jobs.
 
-Verification: [Milestone 5B](milestone-5b.md).
+Verification: [Database and host boundaries](verification.md#database-and-host-boundaries).
