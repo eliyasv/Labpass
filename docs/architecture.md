@@ -230,10 +230,14 @@ Lambda entry point and cloud relay/SQS/SES adapters, Secrets Manager refresh and
 RDS TLS configuration. The Lambda consumer uses 120-second delivery leases,
 source ARN validation, time admission checks and per-record failure responses.
 Real PostgreSQL plus stubbed SDK responses verify transactions; the official
-runtime emulator verifies offline packaging. Actual mapping (`ReportBatchItemFailures`),
-deployed permissions and AWS verification remain pending. See the
+runtime emulator verifies offline packaging. Terraform defines an optional mapping
+with `ReportBatchItemFailures`, a published-version alias and bounded concurrency.
+Deployed permissions and AWS verification remain pending. See the
 [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
+
+SES identity/DKIM, configuration-set suppression/metrics, Lambda VPC permissions
+and activation requirements: [Confirmation worker deployment](confirmation-worker.md).
 
 PostgreSQL owns inventory and delivery claims. A separate inventory store would
 introduce consistency requirements between two data stores. No DynamoDB table

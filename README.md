@@ -144,6 +144,10 @@ docs/          Architecture, development guides and verification reports
 
 The local application and confirmation pipeline are implemented. Cloud worker
 adapters, API secret loading and Lambda packaging are tested offline. Terraform
+defines networking, image repositories, queues, private RDS, scoped runtime access,
+optional API/relay hosting and a private Lambda/SQS/SES confirmation workload.
+AWS deployment, frontend integration, GitHub Actions, load testing and alarms
+remain pending.
 defines networking, image repositories, queues, private RDS, scoped runtime access
 and optional API/relay hosting behind an HTTPS ALB, with private S3 frontend
 delivery through CloudFront and Route 53. AWS deployment, Lambda/SES provisioning,
@@ -154,6 +158,7 @@ GitHub Actions, load testing and alarms remain pending.
 - [AWS worker configuration](docs/aws-workers.md)
 - [Database runtime](docs/database-runtime.md)
 - [Application hosting](docs/application-hosting.md)
+- [Confirmation worker deployment](docs/confirmation-worker.md)
 - [Frontend delivery](docs/frontend-delivery.md)
 - [Terraform](infra/README.md)
 - [Project checklist](docs/checklist.md)

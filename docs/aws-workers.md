@@ -17,8 +17,8 @@ Relay: use the backend image with command `python -m labpass.aws_relay`.
 `--once` processes at most five due outbox events and returns a failure exit code
 if processing raises. `--validate` checks configuration and the CA file without
 creating SDK clients or contacting AWS. SIGTERM/SIGINT finish the current batch
-then dispose the pool. Backlog/last-success monitoring and service supervision
-remain pending.
+then dispose the pool. EC2 hosting supplies systemd supervision;
+backlog/last-success monitoring remains pending.
 
 Required non-secret runtime settings:
 
@@ -109,13 +109,15 @@ complaint handling remain required deployment/operations work.
 Policies require resource ARNs from Terraform resources and outputs.
 Terraform defines role-specific secret access and source-queue permissions.
 Database bootstrap installs the table grants. Optional EC2 hosting adds ECR,
-SSM and component log access. Lambda SES/logging/VPC permissions remain pending.
-See [Database runtime](database-runtime.md) and [Application hosting](application-hosting.md).
+SSM and component log access. Optional confirmation deployment adds Lambda image
+retrieval, scoped SES/logging and conditional VPC interface permissions.
+See [Database runtime](database-runtime.md), [Application hosting](application-hosting.md)
+and [Confirmation worker deployment](confirmation-worker.md).
 
 | Principal | Minimum intended permissions |
 | --- | --- |
 | EC2 relay role | `sqs:SendMessage` on the source queue; `secretsmanager:GetSecretValue` on its relay secret; logs to its configured log group |
-| Lambda execution role | `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on the source queue; `secretsmanager:GetSecretValue` on its consumer secret; `ses:SendEmail` on the verified identity with `ses:FromAddress` restricted to `LABPASS_SES_FROM`; logs to its configured log group |
+| Lambda execution role | `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` on the source queue; `secretsmanager:GetSecretValue` on its consumer secret; `ses:SendEmail` on the identity/configuration set with `ses:FromAddress` restricted to `LABPASS_SES_FROM`; logs to its configured log group |
 | Secret/queue KMS permissions | For customer-managed keys, restrict decrypt permissions to required keys/services/contexts; SQS publishers need `kms:Decrypt` and `kms:GenerateDataKey` on the queue key, consumers need `kms:Decrypt` |
 | Lambda VPC attachment | Required ENI management permissions; review AWS's separation of Lambda service ENI operations from function-code privileges |
 | Relay database role | SELECT/UPDATE outbox; database CONNECT/schema USAGE, no ownership or DDL |
@@ -152,7 +154,9 @@ Planned release: OIDC-authenticated CI builds and tests immutable images; a
 controlled job runs additive migrations once; configure roles/secrets/TLS;
 deploy API/relay and Lambda versions; then enable the source mapping and run a
 real end-to-end smoke. Serialize releases so an older job cannot overwrite a
-newer deployment. Workload Terraform and GitHub Actions remain pending.
+newer deployment. Workload Terraform defines a published Lambda version behind
+the `live` alias and a disabled-by-default mapping. SES verification and successful
+DKIM are required before explicit activation; GitHub Actions remains pending.
 The cloud API loads its own database secret at runtime. Bootstrap and controlled
 migration commands are documented in [Database runtime](database-runtime.md).
 

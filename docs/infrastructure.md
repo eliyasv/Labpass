@@ -53,8 +53,9 @@ removal when images are present. Artifact retention policy remains pending.
 
 The source visibility matches the worker contract for a 60-second Lambda
 timeout. Longer DLQ retention preserves failed messages for investigation.
-Relay/consumer SQS permissions are defined. The Lambda event-source mapping
-remains pending. See
+Relay/consumer SQS permissions and the optional Lambda event-source mapping are
+defined. The mapping targets a published-version alias, starts disabled and uses
+partial batch failures with matching function/mapping concurrency limits. See
 [the AWS worker contract](aws-workers.md#sqs-lambda-and-email-settings).
 
 ## Configuration and state
@@ -85,6 +86,8 @@ for privileges, configuration and commands.
 
 Formatting and provider-schema validation passed. Twenty-eight mocked Terraform tests
 verify topology, routing isolation, default-group rules, repository settings,
+queue/database configuration, hosting, confirmation delivery, scoped runtime access
+and invalid configuration.
 queue/database configuration, hosting, frontend delivery, scoped access and invalid configuration.
 Actual AWS connectivity, authorization and TLS handshakes remain unverified.
 
@@ -92,6 +95,15 @@ Hosting uses separate API/relay ASGs and explicit operator launch templates with
 SSM, ECR and CloudWatch logging access. Configuration and limits:
 [Application hosting](application-hosting.md).
 
+Lambda runs in the private application subnets with the consumer role/group and
+existing NAT path. SES uses a domain identity, DKIM records in an existing public
+zone, suppression and configuration-set delivery metrics. Mapping activation
+requires verified SES/DKIM; database bootstrap and account/recipient checks remain
+operator prerequisites. See [Confirmation worker deployment](confirmation-worker.md).
+
+CloudFront/S3/OAC, DNS/ACM, distribution-specific origin validation,
+workflows and alarms remain to be integrated. Real Lambda image/VPC/IAM access,
+SES delivery and SQS retry/redrive require deployment verification.
 Frontend delivery uses private versioned S3 with SigV4 OAC, CloudFront, separate
 public/origin ACM certificates and Route 53 records in an existing authoritative
 public zone. HTML/API caching is disabled; versioned assets may cache for one
