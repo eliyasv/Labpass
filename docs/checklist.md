@@ -1,9 +1,8 @@
 # Project checklist
 
 Updated 15 October 2026. Local application and background processing are complete.
-Cloud workers, database access, application hosting and confirmation-workload
-Cloud workers, database access, application hosting and frontend-delivery
-configuration are verified offline; AWS deployment remains pending.
+Cloud workers, database access, application hosting, frontend delivery and
+confirmation-workload configuration are verified offline; AWS deployment remains pending.
 Verification records: [Technical documentation](README.md#verification-records).
 
 ## Milestone 1: local booking correctness
@@ -122,17 +121,6 @@ Verification records: [Technical documentation](README.md#verification-records).
 - [x] Mocked hosting tests, host-helper failure checks, rendered startup and container validation.
 - [ ] Verify deployed EC2 startup, permissions, ALB health/TLS and refresh behaviour.
 
-## Milestone 5E: confirmation workload deployment
-
-- [x] Optional digest-pinned x86_64 Lambda, numeric published version and stable alias.
-- [x] Consumer-role private RDS connectivity and metadata-only runtime environment.
-- [x] Exact-sender SES permissions, scoped log writes and function-restricted ECR image retrieval.
-- [x] Lambda service ENI access with conditional function-code denial.
-- [x] Disabled-by-default SQS mapping, batch/window/visibility contract and shared concurrency limit.
-- [x] SES domain, 2048-bit Easy DKIM and three CNAMEs in an existing public hosted zone.
-- [x] Configuration-set suppression and delivery/bounce/complaint metrics.
-- [x] SES/DKIM activation guards and offline Terraform coverage.
-- [ ] Verify deployed image retrieval, VPC/IAM, SES sandbox/quotas/delivery, alias updates and SQS retries/DLQ.
 ## Milestone 5D: frontend delivery
 
 - [x] Private encrypted/versioned S3 with blocked public access, disabled ACLs and distribution-scoped OAC.
@@ -144,6 +132,18 @@ Verification records: [Technical documentation](README.md#verification-records).
 - [x] Browser response headers, unchanged API errors and explicit frontend publication order.
 - [x] Fourteen new mocked delivery tests; full suite 28 passed; frontend contract/build and 27 script checks passed.
 - [ ] Verify deployed DNS, certificates, S3/OAC access, origin restrictions and browser flows through CloudFront.
+
+## Milestone 5E: confirmation workload deployment
+
+- [x] Optional digest-pinned x86_64 Lambda, numeric published version and stable alias.
+- [x] Consumer-role private RDS connectivity and metadata-only runtime environment.
+- [x] Exact-sender SES permissions, scoped log writes and function-restricted ECR image retrieval.
+- [x] Lambda service ENI access with conditional function-code denial.
+- [x] Disabled-by-default SQS mapping, batch/window/visibility contract and shared concurrency limit.
+- [x] SES domain, 2048-bit Easy DKIM and three CNAMEs in an existing public hosted zone.
+- [x] Configuration-set suppression and delivery/bounce/complaint metrics.
+- [x] SES/DKIM activation guards and offline Terraform coverage.
+- [ ] Verify deployed image retrieval, VPC/IAM, SES sandbox/quotas/delivery, alias updates and SQS retries/DLQ.
 
 ## Remaining milestones 5–6: workloads, delivery and operations
 
