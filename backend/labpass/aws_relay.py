@@ -25,7 +25,7 @@ def main():
         if args.validate:
             print("AWS worker configuration is valid; no AWS calls made")
             return 0
-        runtime = AwsRuntime(settings)
+        runtime = AwsRuntime(settings, username="labpass_relay")
         while not stopped.is_set():
             try:
                 processed = publish_batch(runtime.get_sessions(), runtime.publisher, limit=5)

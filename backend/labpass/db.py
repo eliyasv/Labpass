@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 def make_engine(url: str, *, pool_size: int = 10, max_overflow: int = 10):
     return create_engine(
         url,
+        hide_parameters=True,
         pool_pre_ping=True,
         pool_size=pool_size,
         max_overflow=max_overflow,

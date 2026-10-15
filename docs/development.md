@@ -212,6 +212,9 @@ For an isolated poison-message/redrive exercise, see
 [the background pipeline report](milestone-4.md). Cloud runtime configuration,
 permissions and the offline Lambda smoke are in [AWS workers](aws-workers.md).
 
+Cloud database configuration, role grants and controlled migrations are documented
+in [Database runtime](database-runtime.md).
+
 ## Dependency updates
 
 Python locks pin versions for CPython 3.14 on Linux without artifact hashes.

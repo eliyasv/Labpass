@@ -3,6 +3,18 @@ mock_provider "aws" {
   mock_data "aws_availability_zones" {
     defaults = { names = ["us-east-1b", "us-east-1a"] }
   }
+  mock_data "aws_rds_orderable_db_instance" {
+    defaults = { instance_class = "db.t4g.micro" }
+  }
+  mock_resource "aws_db_instance" {
+    defaults = {
+      master_user_secret = [{
+        secret_arn    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-master-AbCd12"
+        kms_key_id    = "mock-key"
+        secret_status = "active"
+      }]
+    }
+  }
 }
 
 override_resource {

@@ -16,7 +16,7 @@ _runtime = None
 def get_runtime():
     global _runtime
     if _runtime is None:
-        _runtime = AwsRuntime(AwsSettings.from_env())
+        _runtime = AwsRuntime(AwsSettings.from_env(), username="labpass_consumer")
     return _runtime
 
 

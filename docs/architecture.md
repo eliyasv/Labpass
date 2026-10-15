@@ -147,8 +147,9 @@ See [PostgreSQL partial unique indexes](https://www.postgresql.org/docs/18/index
 The inventory counter and booking rows must be changed through the transactional
 service. Bounds checks cannot enforce equality between a counter and rows in a
 different table. Direct SQL that bypasses the service can corrupt that equality.
-Tests assert counter/count agreement after races and rollback. Restricted runtime
-DB roles and reconciliation monitoring remain pending.
+Tests assert counter/count agreement after races and rollback. Bootstrap installs
+explicit runtime database grants; workers cannot write inventory and runtime roles
+cannot migrate. Reconciliation monitoring remains pending.
 
 Booking creation persists the reservation, booking, `(user, key)` record with
 canonical request payload, and one `booking.confirmed.v1` outbox event in a single
@@ -230,7 +231,7 @@ RDS TLS configuration. The Lambda consumer uses 120-second delivery leases,
 source ARN validation, time admission checks and per-record failure responses.
 Real PostgreSQL plus stubbed SDK responses verify transactions; the official
 runtime emulator verifies offline packaging. Actual mapping (`ReportBatchItemFailures`),
-roles, private connectivity and deployment remain pending. See the
+compute integration, deployed permissions and AWS verification remain pending. See the
 [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
@@ -286,7 +287,9 @@ Application workloads remain pending. Target routing and access:
 
 The Terraform foundation targets `us-east-1` and uses one zonal NAT plus an S3
 gateway endpoint, with two application AZs and isolated database subnets.
-Database resources and availability settings remain to be implemented. See
+RDS configuration is Single-AZ PostgreSQL with encrypted storage and managed
+master credentials. Runtime services load separate restricted-role secrets. See
+[Database runtime](database-runtime.md) and
 [infrastructure design](infrastructure.md) for the current network boundaries
 and integration status. Availability and egress trade-offs:
 

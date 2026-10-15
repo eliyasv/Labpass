@@ -1,7 +1,7 @@
 # Infrastructure design
 
-The Terraform foundation defines networking, container repositories and
-confirmation queues in `us-east-1`. Application workloads are not deployed.
+Terraform defines networking, repositories, queues, private RDS and runtime
+access in `us-east-1`. AWS resources have not been provisioned.
 
 ## Network boundaries
 
@@ -15,8 +15,9 @@ target account. Each zone has separate public, application and database subnets.
 | Database | `10.42.20.0/24`, `10.42.21.0/24` | Local VPC route only |
 
 Automatic public IP assignment is disabled on all subnets. The default security
-group has no ingress or egress rules. Workload-specific security groups remain
-to be defined with the application resources.
+group has no ingress or egress rules. Separate API, relay, consumer, migration
+and bootstrap groups permit PostgreSQL access to the database group and HTTPS
+egress. Application ingress rules remain pending with compute integration.
 
 The NAT gateway resides in the first public subnet. Both application zones use
 it, creating a shared egress dependency and potential cross-AZ transfer costs.
@@ -49,7 +50,8 @@ removal when images are present. Artifact retention policy remains pending.
 
 The source visibility matches the worker contract for a 60-second Lambda
 timeout. Longer DLQ retention preserves failed messages for investigation.
-Runtime roles and the Lambda event-source mapping remain pending. See
+Relay/consumer SQS permissions are defined. The Lambda event-source mapping
+remains pending. See
 [the AWS worker contract](aws-workers.md#sqs-lambda-and-email-settings).
 
 ## Configuration and state
@@ -63,14 +65,27 @@ signed package checksums. State, plans, provider binaries and local variable
 files are excluded from Git. The current root uses local state; shared deployment
 requires encrypted, versioned remote state with locking and scoped access.
 
+## Database and runtime access
+
+RDS uses PostgreSQL 18.6, `db.t4g.micro`, Single-AZ placement and encrypted 20 GiB
+gp3 storage. The orderability data source checks version/class support during a
+real plan. Backups retain seven days, deletion protection defaults to enabled and
+removal requires a final snapshot. PostgreSQL enforces TLS and SCRAM passwords.
+
+The master password is RDS-managed. Terraform creates four runtime secret
+containers; SDK bootstrap initializes credentials and restricted database roles.
+Runtime IAM roles read their own secret. The bootstrap role alone reads the
+master secret and writes role secrets. See [Database runtime](database-runtime.md)
+for privileges, configuration and commands.
+
 ## Verification and remaining integration
 
-Formatting and provider-schema validation passed. Four mocked Terraform tests
+Formatting and provider-schema validation passed. Seven mocked Terraform tests
 verify topology, routing isolation, default-group rules, repository settings,
-queue policies and invalid configuration. These checks do not establish actual
-AWS connectivity or authorization.
+queue/database configuration, scoped secret access and invalid configuration.
+Actual AWS connectivity, authorization and TLS handshakes remain unverified.
 
-RDS, restricted database roles, runtime secrets, ALB/EC2, SSM, CloudFront/S3/OAC,
-DNS/ACM, Lambda/SES, deployment workflows and monitoring remain to be integrated.
+ALB/EC2, SSM, CloudFront/S3/OAC, DNS/ACM, Lambda/SES deployment permissions,
+deployment workflows and monitoring remain to be integrated.
 See [Terraform commands](../infra/README.md) and
-[foundation verification](milestone-5a.md).
+[database/access verification](milestone-5b.md).

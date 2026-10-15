@@ -1,7 +1,7 @@
 # Project checklist
 
 Updated 14 October 2026. Local application and background processing are complete.
-Cloud workers and Terraform foundation are verified offline; AWS deployment
+Cloud workers, API secret loading and Terraform database/access resources are verified offline; AWS deployment
 remains pending. Verification records: [Technical documentation](README.md#verification-records).
 
 ## Milestone 1: local booking correctness
@@ -96,12 +96,24 @@ remains pending. Verification records: [Technical documentation](README.md#verif
 - [x] Document foundation verification and integration requirements.
 - [ ] Configure DNS hosting/delegation and certificate validation.
 
+## Milestone 5B: database and runtime access
+
+- [x] Private encrypted PostgreSQL 18 RDS configuration and target-region orderability lookup.
+- [x] Database subnet group, TLS/SCRAM parameters, backups and deletion protection.
+- [x] Separate database client security groups and component-specific secret/SQS access.
+- [x] RDS-managed master password and runtime secrets initialized outside Terraform state.
+- [x] Restricted API/relay/consumer database roles and separate migration schema owner.
+- [x] Repeatable bootstrap with a session advisory lock, migrations and explicit table grants.
+- [x] Thread-safe API credential refresh, bounded pool, Secure cookies and sanitized outage responses.
+- [x] Real-PostgreSQL privilege denial, worker flow and interrupted-bootstrap recovery tests.
+- [ ] Verify RDS orderability, network/TLS, IAM and role-secret refresh in AWS.
+
 ## Remaining milestones 5–6: workloads, delivery and operations
 
 - [ ] Terraform for private S3/OAC, CloudFront API forwarding/no cache and TLS.
 - [ ] ALB, two-AZ private EC2 ASG, ECR retrieval and explicit private egress/bootstrap paths.
-- [ ] RDS engine availability/version, private network, restricted DB roles and verified TLS.
-- [ ] Roles, runtime Secrets Manager retrieval, SSM and scoped GitHub OIDC trust.
+- [ ] Verify deployed RDS engine/class availability, private reachability and TLS.
+- [ ] ECR/SSM/logging, SES and Lambda VPC permissions; scoped GitHub OIDC trust.
 - [ ] Distributed login/registration abuse controls, email verification/recovery and session cleanup.
 - [ ] Extend Terraform validation/tests and IAM/network review to the complete workload stack.
 - [ ] GitHub Actions CI, immutable image digests, single migrations, release ordering and smoke tests.
