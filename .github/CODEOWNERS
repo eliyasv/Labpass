@@ -1,0 +1,12 @@
+/.github/ @eliyasv
+/.gitleaks.toml @eliyasv
+/security/ @eliyasv
+/scripts/ci/ @eliyasv
+/scripts/tests/test_release.py @eliyasv
+/infra/ @eliyasv
+/backend/Dockerfile* @eliyasv
+/backend/requirements* @eliyasv
+/frontend/package*.json @eliyasv
+/backend/labpass/auth.py @eliyasv
+/backend/labpass/database_roles.py @eliyasv
+/backend/migrations/ @eliyasv

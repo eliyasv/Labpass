@@ -1,7 +1,22 @@
-FROM public.ecr.aws/lambda/python:3.14
+FROM public.ecr.aws/lambda/python:3.14@sha256:486b444fbc2079290e331eb86c4e1a5f11eb72873bd2ea883b177a1cd070ed09 AS aws-base
+
+FROM aws-base AS runtime
+ARG AL2023_RELEASE=2023.12.20261013
 COPY requirements.lock ${LAMBDA_TASK_ROOT}/requirements.lock
-RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.lock --target ${LAMBDA_TASK_ROOT}
+RUN dnf upgrade --refresh --releasever=${AL2023_RELEASE} -y \
+    && dnf clean all \
+    && pip install --no-cache-dir --only-binary=:all: --require-hashes -r ${LAMBDA_TASK_ROOT}/requirements.lock --target ${LAMBDA_TASK_ROOT} \
+    && PYTHONPATH=${LAMBDA_TASK_ROOT} python -m pip check \
+    && python -m pip uninstall -y pip \
+    && rm -rf /var/lang/lib/python3.14/ensurepip \
+    && rm -f /usr/local/bin/aws-lambda-rie
 COPY labpass ${LAMBDA_TASK_ROOT}/labpass
 COPY certs/rds-global-bundle.pem ${LAMBDA_TASK_ROOT}/certs/rds-global-bundle.pem
 ENV LABPASS_DB_CA_FILE=/var/task/certs/rds-global-bundle.pem
 CMD ["labpass.lambda_handler.lambda_handler"]
+
+# The emulator is used only by offline tests, never by the deployed Lambda image.
+FROM runtime AS local
+COPY --from=aws-base /usr/local/bin/aws-lambda-rie /usr/local/bin/aws-lambda-rie
+
+FROM runtime AS release
