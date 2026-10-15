@@ -29,7 +29,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "openapi-typescript": "7.13.0",
     "prettier": "3.9.10",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vite": "8.3.4"
   }
 }
