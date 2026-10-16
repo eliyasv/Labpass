@@ -5,6 +5,7 @@ locals {
   ]
 }
 
+# Add delivery permissions to the consumer role's existing database/SQS grants.
 resource "aws_iam_role_policy" "confirmation_runtime" {
   count = local.confirmation_enabled ? 1 : 0
   name  = "confirmation-runtime"
@@ -24,6 +25,7 @@ resource "aws_iam_role_policy" "confirmation_runtime" {
         Action = ["ses:SendEmail"]
         Resource = concat(
           [aws_sesv2_email_identity.confirmations[0].arn, aws_sesv2_configuration_set.confirmations[0].arn],
+          # SES can authorize sandbox recipients against their verified identity ARN.
           [for email in sort(tolist(var.confirmation_worker.verified_recipient_emails)) :
             "arn:aws:ses:${var.aws_region}:${var.aws_account_id}:identity/${email}"
           ]
@@ -39,6 +41,7 @@ resource "aws_iam_role_policy" "confirmation_runtime" {
         Resource = "*"
       },
       {
+        # Preserve service-managed ENI access while denying these calls from handler code.
         Sid      = "DenyFunctionCodeVpcChanges"
         Effect   = "Deny"
         Action   = concat(local.lambda_eni_actions, ["ec2:DetachNetworkInterface"])
@@ -51,6 +54,7 @@ resource "aws_iam_role_policy" "confirmation_runtime" {
   })
 }
 
+# Grant Lambda's service image reads only when retrieving this function's image.
 resource "aws_ecr_repository_policy" "lambda" {
   count      = local.confirmation_enabled ? 1 : 0
   repository = var.lambda_repository.name

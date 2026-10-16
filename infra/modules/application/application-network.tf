@@ -3,6 +3,7 @@ locals {
   hosting_roles   = local.hosting_enabled ? toset(["api", "relay", "bootstrap", "migration"]) : toset([])
 }
 
+# This list covers CloudFront across distributions; the listener also checks our secret header.
 data "aws_ec2_managed_prefix_list" "cloudfront" {
   count = local.hosting_enabled ? 1 : 0
   name  = "com.amazonaws.global.cloudfront.origin-facing"
@@ -24,6 +25,7 @@ resource "aws_vpc_security_group_ingress_rule" "cloudfront_https" {
   to_port           = 443
 }
 
+# Permit only ALB-to-API traffic on the container port, with matching ingress below.
 resource "aws_vpc_security_group_egress_rule" "alb_api" {
   count                        = local.hosting_enabled ? 1 : 0
   security_group_id            = aws_security_group.alb[0].id
@@ -53,6 +55,7 @@ resource "aws_lb" "api" {
   desync_mitigation_mode     = "strictest"
 }
 
+# ALB readiness checks include database/schema readiness, not just process liveness.
 resource "aws_lb_target_group" "api" {
   count                = local.hosting_enabled ? 1 : 0
   name                 = substr("${var.name_prefix}-api", 0, 32)
@@ -97,6 +100,7 @@ resource "aws_lb_listener" "api_https" {
   }
 }
 
+# Forward only API paths with a valid origin token; other requests get the default 404.
 resource "aws_lb_listener_rule" "api" {
   count        = local.hosting_enabled ? 1 : 0
   listener_arn = aws_lb_listener.api_https[0].arn
@@ -109,6 +113,7 @@ resource "aws_lb_listener_rule" "api" {
   }
 
   condition {
+    # Accept the previous token during a staged CloudFront token rotation.
     http_header {
       http_header_name = "X-LabPass-Origin"
       values           = concat([var.origin_verify_token], var.origin_verify_previous_token == null ? [] : [var.origin_verify_previous_token])

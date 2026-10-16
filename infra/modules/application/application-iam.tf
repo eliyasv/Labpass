@@ -4,12 +4,15 @@ resource "aws_cloudwatch_log_group" "runtime" {
   retention_in_days = 7
 }
 
+# Manage private hosts through Systems Manager instead of opening inbound SSH.
 resource "aws_iam_role_policy_attachment" "ssm" {
   for_each   = local.hosting_roles
   role       = var.runtime_roles[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Restrict image pulls to the shared API/relay repository and logs to each component.
+# ECR authorization tokens require wildcard scope; layer/image reads remain scoped.
 resource "aws_iam_role_policy" "container_runtime" {
   for_each = local.hosting_roles
   name     = "container-runtime"

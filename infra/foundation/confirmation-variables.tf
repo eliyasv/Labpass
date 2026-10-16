@@ -1,3 +1,7 @@
+# Enable the Lambda/SES resources separately from queue creation. Leave polling
+# disabled until database bootstrap, domain/DKIM and SES account checks succeed.
+# Shared account concurrency still respects the SQS mapping limit. Recipient
+# identity grants neither verify addresses nor define a destination allowlist.
 variable "confirmation_worker" {
   description = "Lambda/SQS/SES confirmation delivery. Null leaves the worker disabled; an existing authoritative public Route 53 zone is required."
   type = object({

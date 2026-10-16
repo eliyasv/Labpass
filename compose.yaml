@@ -1,5 +1,7 @@
+# Local stack: PostgreSQL plus Nginx/API, with ElasticMQ and Mailpit replacing SQS/SES.
 name: labpass
 services:
+  # Persist application data without exposing PostgreSQL on a host port.
   db:
     image: postgres:18
     environment:
@@ -13,8 +15,10 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  # Run schema upgrades once before the API and workers start.
   migrate:
     build: ./backend
+    # Reuse the same database and browser-origin settings in the API and workers.
     environment: &api_environment
       # A libpq password environment variable avoids URL-encoding password characters.
       DATABASE_URL: postgresql+psycopg://labpass@db:5432/labpass
@@ -25,6 +29,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  # Reachable inside Compose; browser traffic enters through the web service.
   api:
     build: ./backend
     environment: *api_environment
@@ -40,6 +45,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  # Serve React and proxy /api/* to FastAPI through one loopback browser origin.
   web:
     build: ./frontend
     ports:
@@ -52,11 +58,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  # Local SQS-compatible queues and DLQ; configuration is mounted read-only.
   queue:
     image: softwaremill/elasticmq-native:1.7.1
     volumes:
       - ./local/elasticmq.conf:/opt/elasticmq.conf:ro
       - queue_data:/data
+  # Capture consumer SMTP messages locally; only the inbox UI is published.
   mailpit:
     image: axllent/mailpit:v1.31.5
     environment:
@@ -72,6 +80,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  # Read committed PostgreSQL outbox events and publish them to ElasticMQ.
   relay:
     build: ./backend
     environment: &background_environment
@@ -91,6 +100,7 @@ services:
       timeout: 12s
       retries: 5
       start_period: 10s
+  # Local equivalent of the Lambda worker: claim delivery, then send to Mailpit.
   consumer:
     build: ./backend
     environment: *background_environment
@@ -109,6 +119,7 @@ services:
       timeout: 12s
       retries: 5
       start_period: 10s
+# Named volumes retain database, queue and mailbox data across container recreation.
 volumes:
   postgres_data:
   queue_data:

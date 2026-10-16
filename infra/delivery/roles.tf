@@ -128,6 +128,7 @@ resource "aws_iam_role_policy" "release" {
         }], var.migration_instance_id == null ? [] : [{
         Effect = "Allow", Resource = [aws_ssm_document.migrate.arn, "${format(local.regional_arn, "ec2")}:instance/${var.migration_instance_id}"], Action = ["ssm:SendCommand"]
         }], [for statement in [
+        # Auto Scaling validates launch permissions when the release changes its template.
         {
           Sid    = "ValidateFleetLaunches"
           Effect = "Allow"
@@ -139,6 +140,7 @@ resource "aws_iam_role_policy" "release" {
           )
           Condition = { ArnEquals = { "ec2:LaunchTemplate" = local.fleet_template_arns } }
         },
+        # Pass only fleet roles to EC2; other runtime/operator roles are outside this scope.
         {
           Sid       = "PassFleetRoles"
           Effect    = "Allow"

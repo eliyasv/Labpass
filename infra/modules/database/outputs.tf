@@ -10,6 +10,8 @@ output "database" {
   }
 }
 
+# Export access identities only after their rules/policies exist, so dependent
+# compute does not start with an unconfigured database access path.
 output "client_security_group_ids" {
   description = "Database client security-group IDs by component, including configured PostgreSQL and HTTPS rules."
   value       = { for name, group in aws_security_group.database_client : name => group.id }

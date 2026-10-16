@@ -1,3 +1,4 @@
+# Expose module integration metadata for operators and release tooling, not passwords.
 output "network" {
   description = "Network IDs for later workloads; database subnets are isolated."
   value       = module.network.network

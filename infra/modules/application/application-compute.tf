@@ -1,3 +1,4 @@
+# Check the explicitly selected AMI belongs to Amazon and matches the runtime architecture.
 data "aws_ami" "application" {
   count  = local.hosting_enabled ? 1 : 0
   owners = ["amazon"]
@@ -24,6 +25,7 @@ data "aws_ami" "application" {
   }
 }
 
+# User data contains endpoint/secret ARNs; the container fetches password values at runtime.
 locals {
   application_image = local.hosting_enabled ? "${var.api_repository.repository_url}@${var.application.image_digest}" : null
   runtime_environment = { for component in local.hosting_roles : component => merge({
@@ -57,6 +59,7 @@ locals {
   }) }
 }
 
+# One template per role; bootstrap/migration templates do not launch hosts automatically.
 resource "aws_launch_template" "runtime" {
   for_each      = local.hosting_roles
   name          = "${var.name_prefix}-${each.key}"
@@ -130,6 +133,8 @@ resource "aws_launch_template" "runtime" {
   ]
 }
 
+# A running API spans both AZs. The group replaces instances and rolls out templates;
+# traffic-based scaling policies are not configured here.
 resource "aws_autoscaling_group" "api" {
   count                     = local.hosting_enabled ? 1 : 0
   name                      = "${var.name_prefix}-api"
@@ -152,6 +157,7 @@ resource "aws_autoscaling_group" "api" {
   instance_refresh {
     strategy = "Rolling"
     preferences {
+      # Keep existing healthy capacity while one replacement starts at the baseline of two.
       min_healthy_percentage = 100
       max_healthy_percentage = 150
       instance_warmup        = 120
@@ -161,6 +167,7 @@ resource "aws_autoscaling_group" "api" {
   depends_on = [aws_lb_listener_rule.api]
 }
 
+# Independent relay lifecycle and role; baseline one instance permits one extra during refresh.
 resource "aws_autoscaling_group" "relay" {
   count                     = local.hosting_enabled ? 1 : 0
   name                      = "${var.name_prefix}-relay"

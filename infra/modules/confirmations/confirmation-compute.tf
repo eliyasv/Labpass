@@ -4,6 +4,9 @@ resource "aws_cloudwatch_log_group" "confirmations" {
   retention_in_days = 7
 }
 
+# Use the consumer's SQL identity in private subnets; SES/Secrets Manager use NAT.
+# The image is pinned by digest, and publish creates a version for the live alias.
+# Reserved concurrency -1 uses the account pool; the SQS mapping limit still applies.
 resource "aws_lambda_function" "confirmations" {
   count                          = local.confirmation_enabled ? 1 : 0
   function_name                  = local.confirmation_name
@@ -49,6 +52,7 @@ resource "aws_lambda_function" "confirmations" {
   ]
 }
 
+# The queue invokes a named alias so releases can move it to a published version.
 resource "aws_lambda_alias" "confirmations" {
   count            = local.confirmation_enabled ? 1 : 0
   name             = "live"
@@ -56,6 +60,7 @@ resource "aws_lambda_alias" "confirmations" {
   function_version = aws_lambda_function.confirmations[0].version
 }
 
+# AWS polls SQS and invokes Lambda; failed records are retried rather than acknowledged.
 resource "aws_lambda_event_source_mapping" "confirmations" {
   count                              = local.confirmation_enabled ? 1 : 0
   event_source_arn                   = var.queue_arn
@@ -70,10 +75,12 @@ resource "aws_lambda_event_source_mapping" "confirmations" {
   }
 
   lifecycle {
+    # Leave enough visibility time for processing and Lambda retries.
     precondition {
       condition     = var.queue_visibility_timeout_seconds >= 6 * aws_lambda_function.confirmations[0].timeout
       error_message = "SQS visibility must be at least six times the Lambda timeout with a zero batching window."
     }
+    # This checks SES/DKIM only; database readiness and sandbox recipients need operator checks.
     precondition {
       condition = !var.confirmation_worker.mapping_enabled || (
         aws_sesv2_email_identity.confirmations[0].verified_for_sending_status &&

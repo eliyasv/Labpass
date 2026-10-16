@@ -1,3 +1,4 @@
+# Consumer runs on Lambda; API, relay and controlled operator jobs run on EC2.
 resource "aws_iam_role" "runtime" {
   for_each = local.database_clients
   name     = "${var.name_prefix}-${each.key}"
@@ -11,6 +12,7 @@ resource "aws_iam_role" "runtime" {
   })
 }
 
+# Each runtime reads only its own database secret; SQL grants are set by bootstrap.
 resource "aws_iam_role_policy" "database_secret" {
   for_each = aws_secretsmanager_secret.database
   name     = "database-secret"
@@ -25,6 +27,7 @@ resource "aws_iam_role_policy" "database_secret" {
   })
 }
 
+# Only bootstrap reads the master secret and initializes the four runtime secrets.
 resource "aws_iam_role_policy" "bootstrap_secrets" {
   name = "database-bootstrap"
   role = aws_iam_role.runtime["bootstrap"].id
@@ -45,6 +48,7 @@ resource "aws_iam_role_policy" "bootstrap_secrets" {
   })
 }
 
+# Relay publishes; the consumer receives/deletes. The API has no queue dependency.
 resource "aws_iam_role_policy" "queue" {
   for_each = toset(["relay", "consumer"])
   name     = "confirmation-queue"
@@ -59,6 +63,7 @@ resource "aws_iam_role_policy" "queue" {
   })
 }
 
+# EC2 receives temporary role credentials through these profiles; Lambda uses its role directly.
 resource "aws_iam_instance_profile" "runtime" {
   for_each = toset(["api", "relay", "migration", "bootstrap"])
   name     = "${var.name_prefix}-${each.key}"

@@ -57,6 +57,7 @@ variable "workload_name_prefix" {
   }
 }
 
+# Grant release updates only for these deployed templates; empty grants no template writes.
 variable "runtime_launch_template_ids" {
   type    = map(string)
   default = {}
@@ -69,6 +70,7 @@ variable "runtime_launch_template_ids" {
   }
 }
 
+# This dedicated SSM host is created separately; the SSM document does not launch it.
 variable "migration_instance_id" {
   type    = string
   default = null

@@ -1,3 +1,5 @@
+# Store the built React files privately; CloudFront uses the S3 REST origin.
+# Versioned objects must be emptied explicitly before the bucket can be destroyed.
 resource "aws_s3_bucket" "frontend" {
   count         = local.frontend_enabled ? 1 : 0
   bucket        = "${var.name_prefix}-${var.aws_account_id}-frontend"
@@ -39,6 +41,7 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
+# CloudFront signs origin requests; a public website endpoint is not used.
 resource "aws_cloudfront_origin_access_control" "frontend" {
   count                             = local.frontend_enabled ? 1 : 0
   name                              = "${var.name_prefix}-frontend"
@@ -47,6 +50,7 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+# Scope CloudFront's read grant to this distribution; reject HTTP for all callers.
 resource "aws_s3_bucket_policy" "frontend" {
   count  = local.frontend_enabled ? 1 : 0
   bucket = aws_s3_bucket.frontend[0].id
