@@ -136,3 +136,17 @@ References: [ALB origin restriction](https://docs.aws.amazon.com/AmazonCloudFron
 [AL2023 IMDSv2](https://docs.aws.amazon.com/linux/al2023/ug/imdsv2.html),
 [Docker CloudWatch logging](https://docs.docker.com/engine/logging/drivers/awslogs/),
 [Instance refresh](https://docs.aws.amazon.com/autoscaling/ec2/userguide/instance-refresh-overview.html).
+
+## Failure investigation
+
+| Signal | Application impact | First checks |
+| --- | --- | --- |
+| API target fails readiness | Reduced serving capacity; availability depends on the remaining healthy targets and database | ALB target-health reason, `labpass@api` status, cloud-init output, image pull and database connectivity |
+| RDS is unreachable | Booking requests cannot complete; API readiness and confirmation processing depend on the database | RDS status, client/database security groups, role-secret access and TLS settings in [database runtime](database-runtime.md) |
+| Relay instance is healthy but confirmations stop | Bookings can commit while events wait in the outbox; EC2 health does not establish publication success | Relay service/container logs, outbox retry state, database access and `sqs:SendMessage` permission |
+| Lambda errors or queue age rises | Confirmation emails are delayed; committed bookings are retained | Lambda logs, SQS/DLQ metrics, consumer database access, SES sender/recipient status and concurrency; see [confirmation inspection](confirmation-worker.md#activation-and-inspection) |
+| Release fails after rollout starts | Runtime can be partially updated; there is no automatic rollback | Failed job, migration command, saved plan/state, ASG refresh/template versions and Lambda alias before starting another run; see [release failure handling](delivery.md#state-plan-review-and-failure-handling) |
+
+Alarms and injected AWS outage/recovery exercises are not implemented or verified.
+The [verification limits](verification.md#deployment-and-operational-limits)
+distinguish successful deployment from tested failure recovery.

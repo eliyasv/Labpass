@@ -8,13 +8,13 @@ Evidence and verification limits: [Verification](verification.md).
 
 | Area | Behaviour |
 | --- | --- |
+| Infrastructure | Five Terraform modules covering networking, private RDS, API/relay hosting, S3/CloudFront/DNS/TLS and Lambda/SQS/SES |
+| Delivery | Credential-free CI, dependency/secret/image scans, separate OIDC roles, private remote state/plans and controlled runtime releases |
+| Cloud runtime | SQS/SES adapters, Lambda partial failures, role-specific secret refresh, verified-TLS configuration and restricted database roles |
+| Confirmations | Transactional outbox, competing relays, durable delivery claims, retries, duplicate suppression and guarded recovery |
 | Booking API | Transactional capacity enforcement, one active booking per user/workshop, idempotent retries and cancellation |
 | Authentication | Argon2id, database sessions, ownership/admin checks, Secure cookies, Origin and CSRF validation |
 | Frontend | Workshop browsing, booking/history/cancellation and admin capacity management with real-backend browser coverage |
-| Confirmations | Transactional outbox, competing relays, durable delivery claims, retries, duplicate suppression and guarded recovery |
-| Cloud runtime | SQS/SES adapters, Lambda partial failures, role-specific secret refresh, verified-TLS configuration and restricted database roles |
-| Infrastructure | Five Terraform modules covering networking, private RDS, API/relay hosting, S3/CloudFront/DNS/TLS and Lambda/SQS/SES |
-| Delivery | Credential-free CI, dependency/secret/image scans, separate OIDC roles, private remote state/plans and controlled runtime releases |
 
 Product scope and consistency limits: [Architecture](architecture.md).
 Inputs and operator commands: [Infrastructure](../infra/README.md),
@@ -37,11 +37,16 @@ Inputs and operator commands: [Infrastructure](../infra/README.md),
 - [ ] Inject SQS partial failures/poison messages and verify AWS redrive to the DLQ.
 - [ ] Exercise migration failure and partial-rollout recovery on AWS.
 
-## Remaining application and operations work
+## Remaining infrastructure and operations work
 
-- [ ] Edge request filtering and distributed login/registration abuse controls, email verification/recovery and scheduled session cleanup.
-- [ ] k6 load/latency measurements, capacity/pool tuning and metric-driven scaling policies.
+- [ ] Edge request filtering and distributed login/registration abuse controls.
 - [ ] CloudWatch latency/errors, healthy targets, DB connections, inventory reconciliation, outbox backlog, queue age/DLQ and Lambda alarms.
 - [ ] Backup/restore runbook and a restoration exercise; verify migration/data rollback limits.
+- [ ] k6 load/latency measurements, capacity/pool tuning and metric-driven scaling policies.
 - [ ] Define idempotency/outbox/delivery retention and deployed-image retention policies.
 - [ ] Secret-rotation scheduling, SES feedback handling and alert routing.
+
+## Remaining application work
+
+- [ ] Email ownership verification and account recovery.
+- [ ] Scheduled cleanup of expired sessions.
