@@ -14,7 +14,7 @@ resource "aws_lambda_function" "confirmations" {
   publish                        = true
   timeout                        = 60
   memory_size                    = 512
-  reserved_concurrent_executions = var.confirmation_worker.max_concurrency
+  reserved_concurrent_executions = var.confirmation_worker.reserve_concurrency ? var.confirmation_worker.max_concurrency : -1
 
   image_config {
     command = ["labpass.lambda_handler.lambda_handler"]

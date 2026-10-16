@@ -19,10 +19,15 @@ resource "aws_iam_role_policy" "confirmation_runtime" {
         Resource = "${aws_cloudwatch_log_group.confirmations[0].arn}:*"
       },
       {
-        Sid      = "SendConfirmation"
-        Effect   = "Allow"
-        Action   = ["ses:SendEmail"]
-        Resource = [aws_sesv2_email_identity.confirmations[0].arn, aws_sesv2_configuration_set.confirmations[0].arn]
+        Sid    = "SendConfirmation"
+        Effect = "Allow"
+        Action = ["ses:SendEmail"]
+        Resource = concat(
+          [aws_sesv2_email_identity.confirmations[0].arn, aws_sesv2_configuration_set.confirmations[0].arn],
+          [for email in sort(tolist(var.confirmation_worker.verified_recipient_emails)) :
+            "arn:aws:ses:${var.aws_region}:${var.aws_account_id}:identity/${email}"
+          ]
+        )
         Condition = {
           StringEquals = { "ses:FromAddress" = var.confirmation_worker.sender_email }
         }
@@ -56,7 +61,6 @@ resource "aws_ecr_repository_policy" "lambda" {
       Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
       Action    = ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
-      Resource  = var.lambda_repository.arn
       Condition = {
         ArnLike = { "aws:SourceArn" = [local.confirmation_function_arn, "${local.confirmation_function_arn}:*"] }
       }

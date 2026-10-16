@@ -12,7 +12,9 @@ consumer security group, execution role and consumer database secret.
 | `email_domain` | Lowercase domain for a new SES identity in `us-east-1` |
 | `sender_email` | Normalized lowercase address in that exact domain; alphanumeric local-part groups separated by `.`, `_`, `+` or `-` |
 | `hosted_zone_id` | Existing authoritative public Route 53 zone containing the email domain |
-| `max_concurrency` | Integer `2`–`10`; default `2`, shared by function reserved concurrency and the SQS mapping limit |
+| `max_concurrency` | Integer `2`–`10`; default `2`, limits SQS invocations and sets function reserved concurrency when enabled |
+| `reserve_concurrency` | Default `true`; set `false` to use shared account concurrency while retaining the SQS mapping limit |
+| `verified_recipient_emails` | Default empty set; exact individually verified SES recipient addresses needed for identity authorization during sandbox testing |
 | `mapping_enabled` | Default `false`; enable only after database bootstrap, SES/DKIM verification and account/recipient checks |
 
 Setting `confirmation_worker = null` omits Lambda, its additional permissions,
@@ -42,12 +44,16 @@ Database passwords remain in Secrets Manager. Private HTTPS calls to Secrets
 Manager and SES use the existing NAT path. The handler's source validation,
 delivery claims and partial failures are documented in [AWS workers](aws-workers.md).
 
-Reserved concurrency bounds active invocations across function versions. Idle
-execution environments can retain database connections, including during alias
+With `reserve_concurrency = true`, reserved concurrency bounds active invocations
+across function versions. With `false`, the SQS mapping still limits this queue's
+invocations, but the function shares regional concurrency with other functions.
+Direct invocations and other event sources are outside the mapping's limit.
+Idle execution environments can retain database connections, including during alias
 updates; the concurrency setting is not a global database-connection limit.
-Check RDS connection headroom and regional Lambda reservation quotas before
-activation or increasing concurrency. Retain image digests referenced by deployed
-versions so Lambda can retrieve them after inactivity.
+Check RDS connection headroom and available regional concurrency before activation
+or increasing concurrency. Reserved concurrency requires leaving 100 executions
+unreserved; shared concurrency does not require a reservation. Retain image digests
+referenced by deployed versions so Lambda can retrieve them after inactivity.
 
 ## IAM boundaries
 
@@ -55,6 +61,13 @@ The consumer role reads only its database secret and the source queue. Additiona
 permissions allow writes to its pre-created log group and `ses:SendEmail` on the
 selected domain identity/configuration set, restricted by an exact
 `ses:FromAddress` condition.
+
+SES can also authorize against an individually verified recipient identity.
+`verified_recipient_emails` adds only those identity ARNs in the deployment account
+and region. The same sender-address condition applies to every allowed identity;
+recipient identities cannot be used as alternative senders. Keep recipient values
+in private Terraform inputs. This list grants identity access; it does not verify
+recipients or restrict all destinations to the list.
 
 Lambda's required EC2 interface actions use `Resource="*"`. A conditional deny
 on `lambda:SourceFunctionArn` prevents function code from using those actions

@@ -1,14 +1,25 @@
 variable "confirmation_worker" {
   description = "Lambda/SQS/SES confirmation delivery. Null leaves the worker disabled; an existing authoritative public Route 53 zone is required."
   type = object({
-    image_digest    = string
-    email_domain    = string
-    sender_email    = string
-    hosted_zone_id  = string
-    max_concurrency = optional(number, 2)
-    mapping_enabled = optional(bool, false)
+    image_digest              = string
+    email_domain              = string
+    sender_email              = string
+    hosted_zone_id            = string
+    max_concurrency           = optional(number, 2)
+    reserve_concurrency       = optional(bool, true)
+    verified_recipient_emails = optional(set(string), [])
+    mapping_enabled           = optional(bool, false)
   })
   default = null
+
+  validation {
+    condition = var.confirmation_worker == null ? true : alltrue([
+      for email in var.confirmation_worker.verified_recipient_emails :
+      length(email) <= 254 && length(split("@", email)[0]) <= 64 &&
+      can(regex("^[a-z0-9]+([._+-][a-z0-9]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", email))
+    ])
+    error_message = "Verified recipients must be normalized lowercase email addresses without wildcards, with at most 64 local-part and 254 total characters."
+  }
 
   validation {
     condition = var.confirmation_worker == null ? true : alltrue([

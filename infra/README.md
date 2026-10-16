@@ -61,7 +61,7 @@ Tests use a mocked AWS provider and require no AWS credentials.
 | `frontend` | `null` | S3/CloudFront delivery; existing public hosted zone ID, public hostname and origin hostname |
 | `origin_verify_token` | `null` | Required sensitive 64-character random hex token when application hosting is enabled |
 | `origin_verify_previous_token` | `null` | Previous token accepted during staged rotation |
-| `confirmation_worker` | `null` | Lambda image digest, email domain/sender and public zone ID; concurrency defaults to 2 and polling to disabled |
+| `confirmation_worker` | `null` | Lambda image digest, email domain/sender and public zone ID; SQS concurrency defaults to 2, reservation to enabled and polling to disabled |
 
 Hosting desired capacities default to zero for controlled database setup. See
 [application inputs](../docs/application-hosting.md#configuration).
