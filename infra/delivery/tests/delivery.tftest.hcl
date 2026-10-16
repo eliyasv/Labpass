@@ -12,6 +12,14 @@ mock_provider "aws" {
   mock_resource "aws_ssm_document" {
     defaults = { arn = "arn:aws:ssm:us-east-1:123456789012:document/labpass-demo-release-migration" }
   }
+  mock_resource "aws_route53_zone" {
+    defaults = {
+      zone_id = "Z00000000000000000001"
+      name_servers = [
+        "ns-1.example.net", "ns-2.example.net", "ns-3.example.net", "ns-4.example.net"
+      ]
+    }
+  }
 }
 
 variables {
@@ -24,6 +32,10 @@ variables {
 run "private_state_and_oidc_boundaries" {
   command = apply
 
+  assert {
+    condition     = length(aws_route53_zone.public) == 0 && output.public_dns == null
+    error_message = "Omitting the domain must leave existing bootstrap deployments without a new DNS zone."
+  }
   assert {
     condition = (
       !aws_s3_bucket.state.force_destroy &&
@@ -130,4 +142,30 @@ run "reject_invalid_instance" {
   command = plan
   variables { migration_instance_id = "*" }
   expect_failures = [var.migration_instance_id]
+}
+
+run "public_zone_and_registrar_outputs" {
+  command = apply
+  variables { public_domain_name = "labpass.example.com" }
+
+  assert {
+    condition = (
+      length(aws_route53_zone.public) == 1 &&
+      aws_route53_zone.public[0].name == "labpass.example.com" &&
+      length(aws_route53_zone.public[0].vpc) == 0 &&
+      !aws_route53_zone.public[0].force_destroy &&
+      output.public_dns.hosted_zone_id == aws_route53_zone.public[0].zone_id &&
+      output.public_dns.domain_name == "labpass.example.com" &&
+      toset(output.public_dns.name_servers) == toset([
+        "ns-1.example.net", "ns-2.example.net", "ns-3.example.net", "ns-4.example.net"
+      ])
+    )
+    error_message = "DNS must use a public zone, preserve populated zones on deletion and expose delegation details."
+  }
+}
+
+run "reject_wildcard_zone" {
+  command = plan
+  variables { public_domain_name = "*.example.com" }
+  expect_failures = [var.public_domain_name]
 }

@@ -77,3 +77,17 @@ variable "migration_instance_id" {
     error_message = "Supply the dedicated running migration operator instance ID."
   }
 }
+
+variable "public_domain_name" {
+  description = "Optional public DNS zone managed by this bootstrap; delegate its nameservers at the domain registrar."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.public_domain_name == null ? true : (
+      length(var.public_domain_name) <= 253 &&
+      can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", var.public_domain_name))
+    )
+    error_message = "Supply a lowercase DNS domain without a scheme, wildcard or trailing dot."
+  }
+}

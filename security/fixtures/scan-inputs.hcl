@@ -3,6 +3,7 @@ aws_account_id       = "123456789012"
 github_repository    = "example/labpass"
 github_owner_id      = "1"
 github_repository_id = "2"
+public_domain_name   = "example.test"
 origin_verify_token  = "0000000000000000000000000000000000000000000000000000000000000000"
 application = {
   ami_id                 = "ami-00000000000000001"
