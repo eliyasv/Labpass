@@ -74,6 +74,14 @@ run "private_state_and_oidc_boundaries" {
     error_message = "Publishing, planning and applying must retain separate image, state and secret-value permissions."
   }
   assert {
+    condition = alltrue([for policy in aws_iam_role_policy.metadata :
+      alltrue([for action in ["ec2:GetManagedPrefixListEntries", "ec2:GetInstanceUefiData", "ses:ListTagsForResource"] :
+        contains(jsondecode(policy.policy).Statement[0].Action, action)
+      ])
+    ])
+    error_message = "Plan and apply must read managed prefix-list entries, AMI UEFI data and SES tags during foundation refresh."
+  }
+  assert {
     condition = (
       !strcontains(aws_iam_role_policy.release.policy, "ssm:SendCommand") &&
       !strcontains(aws_iam_role_policy.release.policy, "ec2:CreateLaunchTemplateVersion") &&

@@ -4,6 +4,8 @@ import copy
 import hashlib
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -15,6 +17,50 @@ SPEC = importlib.util.spec_from_file_location(
 )
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_captured_commands_keep_stdout_private_and_expose_errors(capfd, returncode):
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "import sys; print('private plan data'); "
+            "print('command diagnostic', file=sys.stderr); "
+            f"sys.exit({returncode})"
+        ),
+    ]
+    if returncode:
+        with pytest.raises(subprocess.CalledProcessError) as caught:
+            release.run(command, capture=True)
+        result = caught.value
+    else:
+        result = release.run(command, capture=True)
+    assert result.stdout == "private plan data\n"
+    output = capfd.readouterr()
+    assert output.out == ""
+    assert output.err == "command diagnostic\n"
+
+
+def test_failed_plan_reports_stage_without_dumping_private_output(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["release.py", "plan"])
+    monkeypatch.setattr(release.os, "umask", Mock())
+    monkeypatch.setattr(
+        release,
+        "plan",
+        Mock(
+            side_effect=subprocess.CalledProcessError(
+                1, release.TF + ["plan"], output="private plan data"
+            )
+        ),
+    )
+    with pytest.raises(SystemExit) as caught:
+        release.main()
+    assert str(caught.value) == (
+        "Terraform plan failed (exit 1); no automatic rollback performed"
+    )
+    output = capsys.readouterr()
+    assert "private plan data" not in output.out + output.err + str(caught.value)
 
 
 @pytest.fixture
