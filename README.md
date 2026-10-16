@@ -5,33 +5,6 @@ workshops, reserve seats and receive confirmation emails; administrators manage
 workshops and capacity. Terraform provisions the AWS infrastructure, and GitHub
 Actions tests, scans and releases the application.
 
-![LabPass workshop management interface](images/liveapplication.png)
-
-## Features
-
-- Registration and login with password hashing and cookie sessions.
-- Workshop browsing with seat availability.
-- One active booking per user and workshop.
-- Booking history and cancellation.
-- Admin workshop creation and capacity management.
-- Asynchronous confirmation emails with retries and duplicate handling.
-
-PostgreSQL owns inventory. Booking, seat count, idempotency key and confirmation
-event commit in one transaction. Concurrent requests cannot exceed capacity;
-retrying a successful request with the same key returns the original booking.
-
-## Stack
-
-| Area | Technologies |
-| --- | --- |
-| Frontend | React, TypeScript, Vite |
-| Backend | Python 3.14, FastAPI, SQLAlchemy, Alembic |
-| Database | PostgreSQL 18 |
-| Local environment | Docker Compose, ElasticMQ, Mailpit |
-| Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
-| Infrastructure | Terraform: Route 53, CloudFront, S3, VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
-| Delivery | GitHub Actions, AWS OIDC, Trivy, Gitleaks, Bandit, dependency audits and SBOMs |
-
 ## AWS architecture
 
 ![Illustrated LabPass AWS architecture with service icons and network boundaries](images/architecture.png)
@@ -138,24 +111,19 @@ separate from this release workflow.
 
 Configuration and permissions: [CI/CD and release security](docs/delivery.md).
 
+## Stack
+
+| Area | Technologies |
+| --- | --- |
+| Infrastructure | Terraform: Route 53, CloudFront, S3, VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
+| Delivery | GitHub Actions, AWS OIDC, Trivy, Gitleaks, Bandit, dependency audits and SBOMs |
+| Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
+| Database | PostgreSQL 18 |
+| Backend | Python 3.14, FastAPI, SQLAlchemy, Alembic |
+| Frontend | React, TypeScript, Vite |
+| Local environment | Docker Compose, ElasticMQ, Mailpit |
+
 ## Deployment evidence
-
-<details>
-<summary>Seat reservation and email confirmation</summary>
-
-A reservation reduces available capacity and appears in the user's bookings.
-
-![Successful seat reservation and updated workshop capacity](images/seatreserved.png)
-
-SES confirmation received from `notifications@labpass.shop`.
-
-![LabPass reservation confirmation email](images/labpassreservationmail.png)
-
-The Lambda log records `email_delivery` with outcome `sent` for the booking.
-
-![CloudWatch Lambda log showing a sent confirmation](images/lamda-confirmation.png)
-
-</details>
 
 <details>
 <summary>Successful CI and AWS release</summary>
@@ -191,6 +159,38 @@ Additional views: [Auto Scaling groups](images/asg.png),
 [booking cancellation](images/bookingcanceled.png).
 
 </details>
+
+<details>
+<summary>Seat reservation and email confirmation</summary>
+
+A reservation reduces available capacity and appears in the user's bookings.
+
+![Successful seat reservation and updated workshop capacity](images/seatreserved.png)
+
+SES confirmation received from `notifications@labpass.shop`.
+
+![LabPass reservation confirmation email](images/labpassreservationmail.png)
+
+The Lambda log records `email_delivery` with outcome `sent` for the booking.
+
+![CloudWatch Lambda log showing a sent confirmation](images/lamda-confirmation.png)
+
+</details>
+
+## Features
+
+![LabPass workshop management interface](images/liveapplication.png)
+
+- Registration and login with password hashing and cookie sessions.
+- Workshop browsing with seat availability.
+- One active booking per user and workshop.
+- Booking history and cancellation.
+- Admin workshop creation and capacity management.
+- Asynchronous confirmation emails with retries and duplicate handling.
+
+PostgreSQL owns inventory. Booking, seat count, idempotency key and confirmation
+event commit in one transaction. Concurrent requests cannot exceed capacity;
+retrying a successful request with the same key returns the original booking.
 
 ## Run locally
 
@@ -287,15 +287,15 @@ authentication throttling are not configured. Load testing, CloudWatch alarms an
 a backup restoration exercise remain outstanding. See the
 [verification limits](docs/verification.md#deployment-and-operational-limits).
 
-- [Architecture and decisions](docs/architecture.md)
-- [Development and local operations](docs/development.md)
-- [AWS worker configuration](docs/aws-workers.md)
-- [Database runtime](docs/database-runtime.md)
-- [Application hosting](docs/application-hosting.md)
-- [Frontend delivery](docs/frontend-delivery.md)
-- [Confirmation worker deployment](docs/confirmation-worker.md)
-- [CI/CD and release security](docs/delivery.md)
-- [Terraform](infra/README.md)
-- [Project status](docs/checklist.md)
-- [Verification evidence](docs/verification.md)
-- [Technical documentation](docs/README.md)
+## Documentation
+
+| Guide | Scope |
+| --- | --- |
+| [Infrastructure](docs/infrastructure.md) | Subnet routing, availability, scaling limits and state ownership |
+| [CI/CD and release security](docs/delivery.md) | OIDC roles, security gates, approvals, plans, migrations and rollout |
+| [Application hosting](docs/application-hosting.md) | EC2 startup, health checks, refreshes, SSM and failure investigation |
+| [Terraform modules](infra/modules/README.md) | Resource ownership, interfaces and dependency boundaries |
+| [Verification](docs/verification.md) | Live AWS evidence, infrastructure/security checks and operational limits |
+
+[All technical guides](docs/README.md) · [Terraform commands](infra/README.md) ·
+[Project status](docs/checklist.md)
