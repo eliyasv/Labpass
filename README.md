@@ -285,7 +285,9 @@ email delivery. The screenshots above capture the deployed application and
 successful pipeline runs. Traffic-driven scaling, WAF and distributed
 authentication throttling are not configured. Load testing, CloudWatch alarms and
 a backup restoration exercise remain outstanding. See the
-[verification limits](docs/verification.md#deployment-and-operational-limits).
+[implemented features and trade-offs](docs/checklist.md#implemented),
+[verification limits](docs/verification.md#deployment-and-operational-limits) and
+[improvement priorities](docs/checklist.md#improvement-priorities).
 
 ## Documentation
 
