@@ -206,8 +206,14 @@ review, remove the local copy from restricted storage.
 
 Planning cannot write foundation state or read secret values from Secrets Manager.
 Applying can update existing runtime resources, publish frontend objects and run
-the restricted migration document; it cannot provision infrastructure or manage
-IAM. Provider metadata reads cover the foundation and require several service-wide
+the restricted migration document. EC2 launch permissions require one of the two
+fleet templates; role passing is limited to the API/relay roles and EC2 service.
+Launch-time tagging requires the LabPass project and API/relay component tags.
+Auto Scaling validates these permissions when accepting a launch template.
+The role cannot create IAM, network or database resources; the release plan
+allowlist rejects all resource creation and deletion. See
+[Auto Scaling launch-template permissions](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-launch-template-permissions.html).
+Provider metadata reads cover the foundation and require several service-wide
 read actions. Validate effective permissions in the target account before release.
 
 If migration, Terraform, refresh or smoke verification fails, inspect SSM,

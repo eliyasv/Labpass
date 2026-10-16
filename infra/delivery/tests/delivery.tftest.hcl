@@ -77,6 +77,8 @@ run "private_state_and_oidc_boundaries" {
     condition = (
       !strcontains(aws_iam_role_policy.release.policy, "ssm:SendCommand") &&
       !strcontains(aws_iam_role_policy.release.policy, "ec2:CreateLaunchTemplateVersion") &&
+      !strcontains(aws_iam_role_policy.release.policy, "ec2:RunInstances") &&
+      !strcontains(aws_iam_role_policy.release.policy, "ec2:CreateTags") &&
       jsondecode(aws_iam_role_policy.release.policy).Statement[2].Condition.StringEquals["iam:PassedToService"] == "lambda.amazonaws.com" &&
       jsondecode(aws_iam_role_policy.release.policy).Statement[2].Resource == "arn:aws:iam::123456789012:role/labpass-demo-consumer" &&
       jsondecode(aws_ssm_document.migrate.content).parameters.ImageDigest.allowedPattern == "^sha256:[0-9a-f]{64}$" &&
@@ -105,6 +107,36 @@ run "scoped_existing_runtime_updates" {
       jsondecode(aws_iam_role_policy.release.policy).Statement[6].Action == ["ssm:SendCommand"]
     )
     error_message = "Delivery must not modify other launch templates or run arbitrary commands on other hosts."
+  }
+  assert {
+    condition = (
+      jsondecode(aws_iam_role_policy.release.policy).Statement[7].Action == ["ec2:RunInstances"] &&
+      toset(jsondecode(aws_iam_role_policy.release.policy).Statement[7].Condition.ArnEquals["ec2:LaunchTemplate"]) == toset([
+        "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-00000000000000001",
+        "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-00000000000000002",
+      ]) &&
+      !contains(jsondecode(aws_iam_role_policy.release.policy).Statement[7].Resource, "*") &&
+      toset(jsondecode(aws_iam_role_policy.release.policy).Statement[8].Resource) == toset([
+        "arn:aws:iam::123456789012:role/labpass-demo-api",
+        "arn:aws:iam::123456789012:role/labpass-demo-relay",
+      ]) &&
+      jsondecode(aws_iam_role_policy.release.policy).Statement[8].Action == ["iam:PassRole"] &&
+      jsondecode(aws_iam_role_policy.release.policy).Statement[8].Condition.StringEquals["iam:PassedToService"] == "ec2.amazonaws.com"
+    )
+    error_message = "Auto Scaling launch validation must require an API/relay template and pass only the two fleet roles to EC2."
+  }
+  assert {
+    condition = (
+      jsondecode(aws_iam_role_policy.release.policy).Statement[9].Action == ["ec2:CreateTags"] &&
+      toset(jsondecode(aws_iam_role_policy.release.policy).Statement[9].Resource) == toset([
+        "arn:aws:ec2:us-east-1:123456789012:instance/*",
+        "arn:aws:ec2:us-east-1:123456789012:volume/*",
+      ]) &&
+      jsondecode(aws_iam_role_policy.release.policy).Statement[9].Condition.StringEquals["ec2:CreateAction"] == "RunInstances" &&
+      jsondecode(aws_iam_role_policy.release.policy).Statement[9].Condition.StringEquals["aws:RequestTag/Project"] == "LabPass" &&
+      toset(jsondecode(aws_iam_role_policy.release.policy).Statement[9].Condition.StringEquals["aws:RequestTag/Component"]) == toset(["api", "relay"])
+    )
+    error_message = "Tagging must be limited to instance/volume creation with the LabPass API/relay tags."
   }
 }
 

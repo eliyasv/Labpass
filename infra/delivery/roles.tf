@@ -11,6 +11,9 @@ locals {
   lambda_arn   = "${format(local.regional_arn, "lambda")}:function:${var.workload_name_prefix}-confirmations"
   ecr_arns     = [for name in ["api", "lambda"] : "${format(local.regional_arn, "ecr")}:repository/${var.workload_name_prefix}/${name}"]
   frontend_arn = "arn:aws:s3:::${var.workload_name_prefix}-${var.aws_account_id}-frontend"
+  fleet_template_arns = [for component, id in var.runtime_launch_template_ids :
+    "${format(local.regional_arn, "ec2")}:launch-template/${id}" if contains(["api", "relay"], component)
+  ]
 }
 
 # Reuse an account's existing GitHub provider when supplied; otherwise create it once.
@@ -121,6 +124,36 @@ resource "aws_iam_role_policy" "release" {
         Action = ["ec2:CreateLaunchTemplateVersion", "ec2:ModifyLaunchTemplate"]
         }], var.migration_instance_id == null ? [] : [{
         Effect = "Allow", Resource = [aws_ssm_document.migrate.arn, "${format(local.regional_arn, "ec2")}:instance/${var.migration_instance_id}"], Action = ["ssm:SendCommand"]
-    }])
+        }], [for statement in [
+        {
+          Sid    = "ValidateFleetLaunches"
+          Effect = "Allow"
+          Action = ["ec2:RunInstances"]
+          Resource = concat(
+            ["arn:aws:ec2:us-east-1::image/*"],
+            [for kind in ["instance", "volume", "network-interface", "subnet", "security-group"] : "${format(local.regional_arn, "ec2")}:${kind}/*"],
+            local.fleet_template_arns
+          )
+          Condition = { ArnEquals = { "ec2:LaunchTemplate" = local.fleet_template_arns } }
+        },
+        {
+          Sid       = "PassFleetRoles"
+          Effect    = "Allow"
+          Action    = ["iam:PassRole"]
+          Resource  = [for component in ["api", "relay"] : "${local.account_arn}:role/${var.workload_name_prefix}-${component}"]
+          Condition = { StringEquals = { "iam:PassedToService" = "ec2.amazonaws.com" } }
+        },
+        {
+          Sid      = "TagFleetLaunches"
+          Effect   = "Allow"
+          Action   = ["ec2:CreateTags"]
+          Resource = [for kind in ["instance", "volume"] : "${format(local.regional_arn, "ec2")}:${kind}/*"]
+          Condition = { StringEquals = {
+            "ec2:CreateAction"         = "RunInstances"
+            "aws:RequestTag/Project"   = "LabPass"
+            "aws:RequestTag/Component" = ["api", "relay"]
+          } }
+        }
+    ] : statement if length(local.fleet_template_arns) > 0])
   })
 }
