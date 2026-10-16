@@ -1,6 +1,7 @@
 # Delivery bootstrap
 
-Terraform root for GitHub OIDC release access and remote foundation state.
+Terraform root for GitHub OIDC release access, remote foundation state and an
+optional public DNS zone.
 Region: `us-east-1`. Requires Terraform 1.15.x and AWS provider 6.68.0.
 
 | Resource | Configuration |
@@ -12,6 +13,7 @@ Region: `us-east-1`. Requires Terraform 1.15.x and AWS provider 6.68.0.
 | State bucket | Private, versioned, AES256 encrypted, TLS required, ACLs disabled, destruction protected |
 | Plan retention | Current/noncurrent objects under `plans/` expire after seven days; state versions are retained |
 | SSM document | Validated image digest, host lock, fixed migration helper commands |
+| Optional DNS | Public Route 53 hosted zone; nameservers delegated at the domain registrar |
 
 ## Inputs
 
@@ -25,10 +27,23 @@ Region: `us-east-1`. Requires Terraform 1.15.x and AWS provider 6.68.0.
 | `workload_name_prefix` | Foundation name prefix; default `labpass-demo` |
 | `runtime_launch_template_ids` | Actual `api`, `relay`, `bootstrap`, `migration` IDs; empty grants no template writes |
 | `migration_instance_id` | Dedicated private running operator instance; null grants no SSM command execution |
+| `public_domain_name` | Optional public zone domain; null creates no hosted zone |
 
 The `delivery` output contains role ARNs, exact trusted subjects, backend bucket/key
 and migration document name. Initial infrastructure provisioning uses operator
 credentials; these roles support updates to existing application workloads.
+
+With `public_domain_name` configured, `public_dns` returns the zone ID and four
+nameservers. Set those nameservers at the registrar after preserving any existing
+website/email records in Route 53. Use the zone ID for foundation
+`frontend.hosted_zone_id` and, when using the same zone for SES,
+`confirmation_worker.hosted_zone_id`. The foundation owns application, certificate
+validation and email records; this root owns the zone. Registrar delegation
+remains outside Terraform. Retrieve the DNS outputs with:
+
+```bash
+terraform -chdir=infra/delivery output -json public_dns
+```
 
 ## Offline verification
 

@@ -7,3 +7,12 @@ output "delivery" {
     migration_document = aws_ssm_document.migrate.name
   }
 }
+
+output "public_dns" {
+  description = "Hosted zone ID for foundation inputs and authoritative nameservers for registrar delegation."
+  value = var.public_domain_name == null ? null : {
+    domain_name    = var.public_domain_name
+    hosted_zone_id = aws_route53_zone.public[0].zone_id
+    name_servers   = sort(aws_route53_zone.public[0].name_servers)
+  }
+}
