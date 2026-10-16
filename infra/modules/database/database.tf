@@ -17,6 +17,8 @@ resource "aws_db_parameter_group" "postgres" {
   parameter {
     name  = "rds.force_ssl"
     value = "1"
+    # Match RDS's reported apply method to avoid drift on the unchanged TLS value.
+    apply_method = "pending-reboot"
   }
 
   parameter {

@@ -86,9 +86,10 @@ run "private_database_and_access" {
   assert {
     condition = (
       { for parameter in aws_db_parameter_group.postgres.parameter : parameter.name => parameter.value }["rds.force_ssl"] == "1" &&
+      { for parameter in aws_db_parameter_group.postgres.parameter : parameter.name => parameter.apply_method }["rds.force_ssl"] == "pending-reboot" &&
       { for parameter in aws_db_parameter_group.postgres.parameter : parameter.name => parameter.value }["password_encryption"] == "scram-sha-256"
     )
-    error_message = "PostgreSQL must enforce TLS and SCRAM password storage."
+    error_message = "PostgreSQL must enforce TLS and SCRAM password storage, with an explicit TLS apply method to avoid RDS drift."
   }
 }
 
