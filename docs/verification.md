@@ -1,9 +1,25 @@
 # Verification
 
-Results recorded during local verification on 13–15 October 2026. PostgreSQL
-transactions and local browser/queue/email integrations use real services.
-AWS API responses and Terraform resources use offline stand-ins. GitHub workflow
-execution, AWS deployment and recovery have not been verified.
+Local verification was recorded on 13–16 October 2026, with live AWS deployment
+and release verification on 16 October. PostgreSQL transactions and local
+browser/queue/email integrations use real services. Cloud unit tests use stubbed
+AWS responses; Terraform tests use a mocked provider. Live evidence is listed
+separately below.
+
+## Live AWS verification
+
+| Outcome | Evidence |
+| --- | --- |
+| Frontend and API served through HTTPS | [Application](../images/liveapplication.png) and [CloudFront origins](../images/cloudfront-origin.png); registration, login, workshop management, booking and cancellation exercised through the public hostname |
+| API traffic reaches healthy private instances | [ALB resource map](../images/alb-resoursemap.png) shows two healthy targets; [VPC map](../images/vpc-resoursemap.png) shows the subnet and routing tiers |
+| Booking data and delivery claims use RDS | Deployed API readiness, booking mutations and Lambda delivery succeeded with role-specific Secrets Manager credentials and `sslmode=verify-full` |
+| Reservation email reaches the recipient | [Lambda delivery log](../images/lamda-confirmation.png) records `sent`; [received email](../images/labpassreservationmail.png) confirms mailbox delivery after SES domain/DKIM verification |
+| Protected release completes | [Release run](../images/relessesucces.png) completes preflight, CI, OIDC image publication, saved-plan application, migration, rollout and readiness verification |
+| CI gates complete | [CI run](../images/ci-success.png) passes security, backend, frontend, Terraform and image checks |
+
+These checks establish successful deployment and the normal booking/email path.
+They do not establish measured throughput, AZ failover, backup restoration or
+failure recovery under injected AWS outages.
 
 ## Booking correctness and authentication
 
@@ -56,7 +72,7 @@ statuses or payloads; booking mutations are not automatically retried.
 
 Frontend contract generation, strict compilation, formatting and production builds
 passed. Desktop and 390px Chromium checks found no page runtime errors or
-horizontal overflow. Firefox, WebKit, public HTTPS cookie behaviour, a full
+horizontal overflow. Firefox, WebKit, a dedicated public HTTPS cookie audit, a full
 accessibility audit, forced backend IP changes and browser crashes remain untested.
 Full multi-page datasets and the complete native Vite authentication flow were
 not exercised. Generated TypeScript types do not validate runtime JSON responses.
@@ -110,18 +126,19 @@ All four rendered startup scripts passed shell syntax checks and fit the 16 KiB
 user-data limit. API/relay units passed `systemd-analyze verify` with staged helper
 and dependency units. An isolated API container returned liveness 200 and sanitized
 readiness 503 without cloud credentials/network under its runtime limits.
-These checks do not boot EC2 or validate AWS package, SSM, ECR or logging access.
+These isolated host checks do not boot EC2. The live deployment separately
+exercised package retrieval, SSM migration execution, ECR pulls and logging.
 
 ## Infrastructure and release checks
 
-| Suite | Latest recorded result | Coverage |
+| Suite | Verification method | Coverage |
 | --- | --- | --- |
-| Backend | 180 passed | Real PostgreSQL, including the Alpine API test target's production application libraries |
-| Chromium | 8 passed | Browser booking/auth/admin flows against real local services |
-| Script regressions | 66 passed | Readiness, host-helper and release security/failure cases |
-| Foundation Terraform | 48 passed | Five module contracts, combined workloads, isolation, IAM scopes and invalid inputs |
-| Delivery Terraform | 7 passed | OIDC trust, state storage, scoped release roles and input guards |
-| Security policy/installer | 9 passed | Action pins, credential boundaries, scanner gates, exception scope/expiry and verified tool extraction |
+| Backend | Real PostgreSQL and API test image | Transactions, authentication and the production Alpine application libraries |
+| Chromium | Browser tests against Compose | Booking/auth/admin flows against real local services |
+| Script regressions | Subprocess and SDK stand-ins | Readiness, host-helper and release security/failure cases |
+| Foundation Terraform | Mocked AWS provider | Five module contracts, combined workloads, isolation, IAM scopes and invalid inputs |
+| Delivery Terraform | Mocked AWS provider | OIDC trust, state storage, scoped release roles and input guards |
+| Security policy/installer | Policy and installer checks | Action pins, credential boundaries, scanner gates, exception scope/expiry and verified tool extraction |
 
 Terraform formatting and provider-schema validation passed for both roots.
 Infrastructure tests use a mock AWS provider, fictional identifiers and in-memory
@@ -133,8 +150,10 @@ Release tests reject stale commits, unsupported refs/retries, missing environmen
 protections, unsafe Terraform actions/fields, resource-address moves, mismatched
 manifests and invalid migration targets. They verify that migration failure
 prevents apply, fleet checks wait for numeric template versions, and frontend
-publication retains old assets and writes HTML last. AWS/GitHub calls use offline
-stand-ins; effective permissions and live rollout behaviour remain unverified.
+publication retains old assets and writes HTML last. These regression tests use
+AWS/GitHub stand-ins. The successful live release separately exercised the
+configured deployment roles and rollout path; injected failure scenarios remain
+unverified on AWS.
 
 ## Dependency and image security
 
@@ -169,11 +188,12 @@ exercise the AWS Lambda service.
 
 ## Deployment and operational limits
 
-- AWS orderability/quotas, private networking, RDS TLS handshakes, credential rotation and effective IAM remain unverified.
-- CloudFront/S3/OAC authorization, public DNS delegation, ACM issuance, ALB origin rejection and public browser sessions require deployed checks.
-- GitHub rulesets/environments, OIDC, restricted SSM migrations, saved-plan application, EC2 refreshes and Lambda alias updates require live validation.
-- SES/DKIM verification, sandbox restrictions, mailbox delivery and real SQS partial failures/redrive remain unverified.
-- Login/registration throttling, email verification/recovery and scheduled session cleanup are unimplemented.
+- RDS is Single-AZ, both application AZs share one NAT gateway, and the relay baseline is one instance; AZ failure recovery has not been exercised.
+- Direct anonymous S3 rejection, unrelated-distribution ALB origin rejection and a public cache/cookie security audit require dedicated checks.
+- Repository ruleset enforcement, migration failure and partial-rollout recovery require separate validation; a successful environment-protected release does not test these failures.
+- Live credential rotation, connection headroom, SES rejection recovery and actual SQS partial failures/redrive remain unverified.
+- WAF and distributed authentication throttling are not configured; Auto Scaling groups have no traffic-driven scaling policy.
+- Email ownership verification, account recovery and scheduled session cleanup are unimplemented.
 - Load/latency measurements, metric-driven scaling, reconciliation/queue/latency alarms and backup restoration remain pending.
 
 Run commands: [Development](development.md), [Terraform](../infra/README.md#offline-checks)

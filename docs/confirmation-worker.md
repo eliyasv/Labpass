@@ -128,5 +128,7 @@ aws lambda get-event-source-mapping --region us-east-1 \
 ```
 
 Offline verification: [Infrastructure and release checks](verification.md#infrastructure-and-release-checks).
-AWS image retrieval, VPC/IAM authorization, SES verification/delivery, alias updates
-and actual SQS partial-failure/redrive behaviour remain unverified.
+The live deployment and release exercised image retrieval, VPC/database access,
+runtime IAM, SES domain/DKIM verification, mailbox delivery and alias updates.
+Injected AWS SQS partial failures/redrive and SES rejection recovery remain
+unverified. [Live evidence](verification.md#live-aws-verification).

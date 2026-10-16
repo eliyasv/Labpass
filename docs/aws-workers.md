@@ -1,7 +1,8 @@
 # AWS worker runtime contract
 
-Cloud worker code and packaging are verified offline. AWS workload deployment
-remains pending. Local Compose uses ElasticMQ and Mailpit without AWS credentials.
+The AWS relay/SQS/Lambda/SES pipeline delivered reservation emails in the deployed
+application. Unit tests and the runtime-emulator smoke cover isolated failure and
+packaging cases. Local Compose uses ElasticMQ and Mailpit without AWS credentials.
 
 ## Entry points and configuration
 
@@ -101,8 +102,10 @@ Rejection/unknown acceptance retains a retryable delivery; cancelled bookings
 observed before claiming are skipped. SES acceptance followed by DB completion
 failure can send a duplicate after lease expiry.
 See [SES SendEmail](https://docs.aws.amazon.com/boto3/latest/reference/services/sesv2/client/send_email.html).
-Identity/DKIM verification, sandbox recipient restrictions, quotas, bounce and
-complaint handling remain required deployment/operations work.
+The deployed sender domain and DKIM were verified, and a reservation email
+reached the recipient. SES sandbox recipient restrictions and account quotas must
+still be checked for each deployment. Bounce/complaint application handling is
+not implemented.
 
 ## Permissions and connectivity
 
@@ -147,6 +150,8 @@ during the image build before pip and ensurepip are removed. The `local` target
 adds the emulator for isolated tests; the default `release` target excludes it.
 The smoke checks direct handler behavior and actual runtime-emulator invocations,
 using only container loopback. Empty batches succeed; missing cloud configuration
-or insufficient invocation time returns retryable IDs. AWS integration remains
-unverified. The suite uses real PostgreSQL and boto3 Stubber
-with SDK network requests forbidden. Test-only resource identifiers are fictional.
+or insufficient invocation time returns retryable IDs. This smoke does not
+exercise AWS services. The unit suite uses real PostgreSQL and boto3 Stubber with
+SDK network requests forbidden; test-only resource identifiers are fictional.
+Separate [live evidence](verification.md#live-aws-verification) covers the
+successful deployed booking/email path.

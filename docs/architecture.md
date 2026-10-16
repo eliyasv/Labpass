@@ -29,7 +29,7 @@ password verification and return the same credential error as an incorrect passw
 See the [argon2-cffi API](https://argon2-cffi.readthedocs.io/en/stable/api.html).
 Password operations are limited to two concurrent tasks per process to bound
 memory use; overload returns 503. This is resource protection, not attempt-rate
-limiting. Distributed credential-attempt throttling is required before public deployment.
+limiting. Distributed credential-attempt throttling is not implemented.
 
 Sessions use a fresh 32-byte random token on every login. Only its SHA-256 digest
 is persisted; the raw token is delivered through an HttpOnly, host-only cookie.
@@ -180,7 +180,7 @@ PostgreSQL 18 stores versioned data below `/var/lib/postgresql`, so the Compose
 volume targets that parent as documented by the
 [official PostgreSQL image](https://hub.docker.com/_/postgres).
 
-## Asynchronous email: verified local pipeline
+## Asynchronous email
 
 Migration `0003` adds outbox retry metadata and a durable `email_deliveries` table,
 preserving existing bookings/events. Relays select due events with
@@ -226,14 +226,15 @@ record success leaves an ambiguous result: retry can send a duplicate email,
 while suppressing retry can lose one if the send failed. Exactly-once email
 delivery is not guaranteed by a stable Message-ID or fenced DB updates.
 
-`process_sqs_batch` tests the partial-failure response shape. Milestone 4B adds the
-Lambda entry point and cloud relay/SQS/SES adapters, Secrets Manager refresh and
+`process_sqs_batch` tests the partial-failure response shape. The cloud runtime
+provides the Lambda entry point, relay/SQS/SES adapters, Secrets Manager refresh and
 RDS TLS configuration. The Lambda consumer uses 120-second delivery leases,
 source ARN validation, time admission checks and per-record failure responses.
 Real PostgreSQL plus stubbed SDK responses verify transactions; the official
 runtime emulator verifies offline packaging. Terraform defines an optional mapping
 with `ReportBatchItemFailures`, a published-version alias and bounded concurrency.
-Deployed permissions and AWS verification remain pending. See the
+The deployed pipeline delivered reservation emails through SQS, Lambda and SES.
+Injected AWS failures and redrive remain unverified. See the
 [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
@@ -244,23 +245,15 @@ PostgreSQL owns inventory and delivery claims. A separate inventory store would
 introduce consistency requirements between two data stores. No DynamoDB table
 is implemented.
 
-## AWS target architecture
+## AWS architecture
 
-```mermaid
-flowchart LR
-    Browser --> DNS[Route 53] --> CDN[CloudFront]
-    CDN -->|static assets via OAC| S3[Private S3 bucket]
-    CDN -->|/api/*, HTTPS, caching disabled| ALB[ALB]
-    ALB --> ASG[Private EC2 ASG across two AZs]
-    ECR[ECR image digest] --> ASG
-    Secrets[Secrets Manager via instance role] --> ASG
-    ASG --> RDS[Private RDS PostgreSQL]
-    RDS --> Relay[Outbox relay]
-    Relay --> SQS[SQS plus DLQ] --> Lambda[Lambda consumer] --> SES[SES]
-```
+![LabPass AWS infrastructure and delivery paths](../images/architecture.png)
 
-Terraform defines frontend and application routing; AWS deployment remains
-pending. Routing and access:
+[Vector diagram](../images/architecture.svg). Deployment and a complete protected
+release were verified on 16 October 2026; see
+[live evidence](verification.md#live-aws-verification).
+
+Routing and access:
 
 - Route 53 points the domain to CloudFront. Private S3 uses the REST origin,
   blocked public access, and an OAC bucket policy limited to the distribution;
@@ -277,7 +270,7 @@ pending. Routing and access:
   origin traffic plus an origin validation header. Backend instances have no
   public IPs; their security group accepts the application port only from the
   ALB group. RDS permits PostgreSQL only from runtime and controlled migration
-  security groups. No public DB endpoint or SSH access is planned.
+  security groups. RDS has no public endpoint; hosts use SSM without inbound SSH.
 - Instance roles obtain ECR pull credentials and retrieve only the needed
   Secrets Manager secret at runtime. Database passwords are absent from user data,
   images, Terraform inputs/state, frontend bundles and logs. The CloudFront/ALB
@@ -285,13 +278,10 @@ pending. Routing and access:
   configuration; state and configuration access must be restricted. RDS uses verified
   TLS and separate restricted runtime and migration database roles. Instances
   use Systems Manager for operations instead of inbound SSH.
-- Private instances require a deliberate outbound path for ECR API, image
-  layers, SSM, Secrets Manager, logs, and SQS for the relay. ECR PrivateLink
-  requires API/DKR interface endpoints and S3 access for layers, as described in
-  [ECR endpoint documentation](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html).
-  SSM endpoints depend on the agent and region; verify them against
-  [Systems Manager endpoint requirements](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html).
-  Bootstrap/package retrieval also needs network access or a prepared AMI.
+- Private instances use the NAT gateway for ECR APIs, SSM, Secrets Manager,
+  CloudWatch, SQS and package retrieval. The S3 gateway endpoint provides the
+  same-region S3 path, including ECR image layers. Interface endpoints are not
+  configured. See [infrastructure routing](infrastructure.md#network-boundaries).
 
 The Terraform foundation targets `us-east-1` and uses one zonal NAT plus an S3
 gateway endpoint, with two application AZs and isolated database subnets.
@@ -315,22 +305,21 @@ Availability and egress trade-offs:
 See [AWS NAT designs](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html)
 and [RDS Multi-AZ DB instances](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html).
 The selected one-NAT design has a shared egress failure point and possible
-cross-AZ charges. Regional NAT also exists and is billed per active AZ; its
-per-AZ capacity is an alternative for availability requirements. See
-[regional NAT](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html).
-No cloud resources have been provisioned. Multi-AZ database failover remains a
-separate availability choice rather than a consequence of two-AZ subnet placement.
+cross-AZ charges. The API tier spans two AZs; the database and shared egress each
+have a single-AZ dependency. Multi-AZ database failover requires a separate
+configuration change.
 
 GitHub Actions release jobs use OIDC constrained to the repository and protected
 environment. CI runs without AWS credentials and gates releases on tests and
 security scans. The release workflow publishes scanned artifacts, saves a private
 runtime update plan, runs one migration command, waits for fleet refreshes and
-smoke-tests through CloudFront. GitHub protections and live execution remain
-unverified. Configuration and boundaries: [CI/CD and release security](delivery.md).
+smoke-tests through CloudFront. A complete live release passed these stages,
+including the required-reviewer and dev-only environment checks. Repository
+ruleset enforcement and injected release failures require separate validation.
+Configuration and boundaries: [CI/CD and release security](delivery.md).
 Rolling updates require backward-compatible migrations; changing stored
 data can make an image rollback insufficient and require a forward fix or restore.
 
-CloudWatch work will cover booking latency/errors, healthy ALB targets, database
-connections, outbox backlog, SQS age/DLQ depth and Lambda failures. Backup restore
-instructions and a restoration exercise remain pending. Cloud deployment and
-recovery have not been verified.
+CloudWatch runtime logs and SES delivery metrics are configured. Application,
+queue and infrastructure alarms, a backup/restore runbook and a restoration
+exercise remain outstanding. See the [operations checklist](checklist.md).

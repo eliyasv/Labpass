@@ -1,11 +1,11 @@
 # LabPass
 
-LabPass is a booking app for free cloud and DevOps workshops. Users can browse
-workshops, reserve a seat, manage their bookings and receive confirmation emails.
-Administrators manage workshops and capacity.
+LabPass is a booking application for free cloud and DevOps workshops. Users browse
+workshops, reserve seats and receive confirmation emails; administrators manage
+workshops and capacity. Terraform provisions the AWS infrastructure, and GitHub
+Actions tests, scans and releases the application.
 
-Built as an AWS portfolio project, it focuses on reliable booking transactions,
-asynchronous processing and automated infrastructure and delivery.
+![LabPass workshop management interface](images/liveapplication.png)
 
 ## Features
 
@@ -31,7 +31,166 @@ retrying a successful request with the same key returns the original booking.
 | Cloud workers | Amazon SQS, AWS Lambda, Amazon SES, Secrets Manager |
 | Infrastructure | Terraform: Route 53, CloudFront, S3, VPC, ALB, EC2, ECR, SQS, RDS, IAM and Secrets Manager |
 | Delivery | GitHub Actions, AWS OIDC, Trivy, Gitleaks, Bandit, dependency audits and SBOMs |
-| Planned load testing | k6 |
+
+## AWS architecture
+
+![Illustrated LabPass AWS architecture with service icons and network boundaries](images/architecture.png)
+
+[Vector diagram](images/architecture.svg) · Service icons:
+[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/).
+
+<details>
+<summary>Mermaid architecture diagram</summary>
+
+```mermaid
+flowchart TB
+    Browser[User browser]
+    DNS[Route 53]
+    CDN[CloudFront]
+
+    DNS -.->|DNS alias| CDN
+    Browser -->|HTTPS| CDN
+
+    subgraph AWS["AWS region: us-east-1"]
+        Assets["Private S3 bucket<br/>React static assets"]
+
+        subgraph VPC["VPC across two Availability Zones"]
+            subgraph Public["Public subnets"]
+                ALB["Application Load Balancer<br/>HTTPS listener"]
+            end
+
+            subgraph Private["Private application subnets"]
+                API["FastAPI Auto Scaling group<br/>2 EC2 instances across AZs"]
+                Relay["Outbox relay Auto Scaling group<br/>1 EC2 instance"]
+                Worker["Lambda confirmation worker<br/>VPC-connected"]
+            end
+
+            subgraph Database["Isolated database subnets"]
+                RDS[("RDS PostgreSQL<br/>Single-AZ")]
+            end
+        end
+
+        Queue["SQS confirmation queue"]
+        DLQ["SQS dead-letter queue"]
+        SES["SES<br/>DKIM-signed email"]
+    end
+
+    Inbox[Recipient inbox]
+    CDN -->|Static assets via OAC| Assets
+    CDN -->|"/api/* over HTTPS; no caching"| ALB
+    ALB -->|HTTP port 8000| API
+    API -->|"Bookings and outbox in one transaction; TLS"| RDS
+    Relay -->|"Poll committed outbox; TLS"| RDS
+    Relay -->|Publish event ID| Queue
+    Queue -->|Event source mapping| Worker
+    Queue -->|After repeated failures| DLQ
+    Worker -->|"Delivery claims and booking data; TLS"| RDS
+    Worker -->|Send confirmation| SES
+    SES --> Inbox
+```
+
+</details>
+
+Route 53 resolves the domain to CloudFront. CloudFront serves the frontend from
+private S3 through Origin Access Control (OAC) and forwards API requests to the
+ALB. ACM provides certificates for the CloudFront viewer and ALB origin.
+The ALB accepts CloudFront origin addresses and validates a shared origin header;
+EC2 instances have no public IPs and accept API traffic only from the ALB.
+
+The API commits each booking, inventory update and outbox event together. The
+relay publishes committed events to SQS, and Lambda reads the booking and records
+delivery claims before sending through SES. Queue retries and a DLQ isolate email
+failures from booking transactions. SES acceptance followed by a failed database
+update can still produce a duplicate email on retry.
+
+Workloads use separate IAM roles and database credentials from Secrets Manager.
+RDS connections verify TLS certificates; database security groups admit only
+explicit workload groups. Systems Manager provides instance access without SSH.
+Private workloads use one NAT gateway for outbound access and an S3 gateway
+endpoint for S3 traffic. RDS is Single-AZ, and both application AZs share the NAT
+gateway; the API's two-AZ placement does not make every dependency redundant.
+
+Terraform composes five modules for networking, database access, application
+hosting, frontend delivery and confirmations. The separate delivery root owns
+GitHub OIDC access, remote state, the migration document and the public DNS zone.
+See the [module interfaces](infra/modules/README.md) and
+[architecture guide](docs/architecture.md) for details.
+
+## CI/CD
+
+CI runs backend and browser tests, checks the API contract, validates Terraform
+with mocked-provider tests, audits dependencies and scans source, infrastructure
+and container images. High/critical image vulnerabilities block release.
+
+The manual release workflow runs from `dev`:
+
+```text
+Preflight → CI → Publish scanned images → Save Terraform plan → Apply and verify
+```
+
+Publish, plan and apply use separate OIDC roles and protected GitHub environments
+with reviewer approval. The pipeline publishes the images already scanned by CI
+to ECR, deploys by digest and verifies the saved plan's checksum and release
+metadata before applying. Apply runs database migrations through SSM, updates
+existing workloads, waits for rolling instance refreshes, uploads frontend assets
+and checks readiness through CloudFront. Initial infrastructure provisioning is
+separate from this release workflow.
+
+Configuration and permissions: [CI/CD and release security](docs/delivery.md).
+
+## Deployment evidence
+
+<details>
+<summary>Seat reservation and email confirmation</summary>
+
+A reservation reduces available capacity and appears in the user's bookings.
+
+![Successful seat reservation and updated workshop capacity](images/seatreserved.png)
+
+SES confirmation received from `notifications@labpass.shop`.
+
+![LabPass reservation confirmation email](images/labpassreservationmail.png)
+
+The Lambda log records `email_delivery` with outcome `sent` for the booking.
+
+![CloudWatch Lambda log showing a sent confirmation](images/lamda-confirmation.png)
+
+</details>
+
+<details>
+<summary>Successful CI and AWS release</summary>
+
+CI completes the security, backend, frontend, Terraform and image checks.
+
+![Successful GitHub Actions CI checks](images/ci-success.png)
+
+The release completes preflight, verification, image publication, plan and apply.
+
+![Successful GitHub Actions AWS release](images/relessesucces.png)
+
+</details>
+
+<details>
+<summary>AWS networking and request routing</summary>
+
+The VPC contains public, application and database subnets across two AZs, with a
+NAT gateway and S3 gateway endpoint.
+
+![VPC resource map showing subnet tiers and routing](images/vpc-resoursemap.png)
+
+The ALB routes API requests to two healthy targets.
+
+![ALB resource map with HTTPS listener and healthy API targets](images/alb-resoursemap.png)
+
+CloudFront has separate frontend and API origins; the S3 origin uses OAC.
+
+![CloudFront origins and S3 Origin Access Control](images/cloudfront-origin.png)
+
+Additional views: [Auto Scaling groups](images/asg.png),
+[RDS console](images/rdsconnectity.png) and
+[booking cancellation](images/bookingcanceled.png).
+
+</details>
 
 ## Run locally
 
@@ -68,33 +227,6 @@ The command prompts for a password. Use an unused email, then sign in to access
 Set `LABPASS_PORT` and `LABPASS_MAIL_PORT` in `.env` to change the local ports.
 Stop the stack with `docker compose stop`; database, queue and mailbox data are
 kept in named volumes.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    Browser[React frontend] --> API[FastAPI]
-    API --> DB[(PostgreSQL)]
-    DB -->|Transactional outbox| Relay[Outbox relay]
-    Relay --> Queue[ElasticMQ / SQS]
-    Queue --> Consumer[Local consumer / Lambda]
-    Consumer -->|Delivery claims| DB
-    Consumer --> Mail[Mailpit / SES]
-```
-
-The relay publishes committed confirmation events to a queue. The consumer loads
-the booking from PostgreSQL and uses a durable delivery claim before sending.
-An email failure leaves the booking intact. An email accepted just before a
-failed database update can still be duplicated on retry.
-
-The AWS target uses Route 53 and CloudFront, private S3 frontend hosting, an ALB
-with private EC2 instances across two availability zones, private RDS, SQS,
-Lambda and SES. See the [architecture guide](docs/architecture.md) for the cloud
-diagram, network paths and design trade-offs.
-
-Terraform composes five local modules for networking, database access, application
-hosting, frontend delivery and confirmations. See the
-[module interfaces](infra/modules/README.md).
 
 ## Testing
 
@@ -147,16 +279,13 @@ docs/          Architecture, development guides and verification reports
 
 ## Project status
 
-The local application and confirmation pipeline are implemented. Cloud worker
-adapters, API secret loading and Lambda packaging are tested offline. Terraform
-defines networking, image repositories, queues, private RDS, scoped runtime access,
-API/relay hosting behind an HTTPS ALB, private S3 frontend delivery through
-CloudFront and Route 53, and a private Lambda/SQS/SES confirmation workload.
-GitHub Actions defines CI security gates and protected releases to existing
-workloads. AWS deployment, GitHub protection settings, live release verification,
-load testing and alarms remain pending. High/critical image vulnerabilities block
-release; the current API and Lambda release images pass scanning without
-vulnerability exceptions.
+AWS deployment and a complete GitHub Actions release have been verified, including
+HTTPS routing, workshop management, reservations, cancellation and confirmation
+email delivery. The screenshots above capture the deployed application and
+successful pipeline runs. Traffic-driven scaling, WAF and distributed
+authentication throttling are not configured. Load testing, CloudWatch alarms and
+a backup restoration exercise remain outstanding. See the
+[verification limits](docs/verification.md#deployment-and-operational-limits).
 
 - [Architecture and decisions](docs/architecture.md)
 - [Development and local operations](docs/development.md)
