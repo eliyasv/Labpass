@@ -1,3 +1,4 @@
+# Reuse the zone; the delivery root or an external owner manages its lifecycle.
 data "aws_route53_zone" "site" {
   count        = local.frontend_enabled ? 1 : 0
   zone_id      = var.frontend.hosted_zone_id
@@ -40,12 +41,14 @@ resource "aws_route53_record" "certificate" {
   ttl      = 60
 }
 
+# Certificate consumers wait for DNS validation, not just certificate allocation.
 resource "aws_acm_certificate_validation" "site" {
   for_each                = local.site_domains
   certificate_arn         = aws_acm_certificate.site[each.key].arn
   validation_record_fqdns = [aws_route53_record.certificate[each.key].fqdn]
 }
 
+# CloudFront connects to this ALB hostname over HTTPS using the origin certificate.
 resource "aws_route53_record" "origin" {
   count   = local.frontend_enabled ? 1 : 0
   zone_id = data.aws_route53_zone.site[0].zone_id
@@ -59,6 +62,7 @@ resource "aws_route53_record" "origin" {
   }
 }
 
+# Browser DNS points to CloudFront for both IPv4 and IPv6, never directly to S3/ALB.
 resource "aws_route53_record" "site" {
   for_each = local.frontend_enabled ? toset(["A", "AAAA"]) : toset([])
   zone_id  = data.aws_route53_zone.site[0].zone_id

@@ -1,3 +1,4 @@
+# Use two standard AZs available to the account for public, application and DB tiers.
 data "aws_availability_zones" "available" {
   state = "available"
 
@@ -42,6 +43,7 @@ resource "aws_internet_gateway" "main" {
   tags   = { Name = var.name_prefix }
 }
 
+# Public routes serve the ALB and NAT; instances do not receive public IPs by default.
 resource "aws_subnet" "public" {
   for_each = local.zones
 
@@ -52,6 +54,7 @@ resource "aws_subnet" "public" {
   tags                    = { Name = "${var.name_prefix}-public-${each.key}" }
 }
 
+# API, relay, Lambda and operator hosts use private subnets with outbound NAT access.
 resource "aws_subnet" "application" {
   for_each = local.zones
 
@@ -62,6 +65,7 @@ resource "aws_subnet" "application" {
   tags                    = { Name = "${var.name_prefix}-application-${each.key}" }
 }
 
+# Database subnets have no internet route; two subnets do not make RDS Multi-AZ.
 resource "aws_subnet" "database" {
   for_each = local.zones
 
@@ -94,6 +98,7 @@ resource "aws_eip" "nat" {
   tags   = { Name = "${var.name_prefix}-nat" }
 }
 
+# Both application AZs share this zonal gateway, so egress depends on one AZ.
 resource "aws_nat_gateway" "main" {
   availability_mode = "zonal"
   connectivity_type = "public"
@@ -136,6 +141,7 @@ resource "aws_route_table_association" "database" {
   route_table_id = aws_route_table.database.id
 }
 
+# Route same-region S3 traffic, including ECR image layers, outside the NAT path.
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"

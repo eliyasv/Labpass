@@ -1,3 +1,5 @@
+# Null omits hosting; zero desired capacities create the fleet definitions before
+# database bootstrap. A running API requires at least two instances across AZs.
 variable "application" {
   description = "EC2/ALB hosting configuration. Null leaves hosting disabled."
   type = object({
@@ -23,6 +25,7 @@ variable "application" {
   }
 }
 
+# CloudFront supplies this header to the ALB; sensitive inputs still enter state.
 variable "origin_verify_token" {
   description = "Random 32-byte hex token shared by CloudFront and the ALB. Stored in Terraform state; restrict state and configuration access."
   type        = string
@@ -35,6 +38,7 @@ variable "origin_verify_token" {
   }
 }
 
+# Temporarily accept both tokens while CloudFront rolls out the replacement.
 variable "origin_verify_previous_token" {
   description = "Previous origin token accepted during a two-step rotation; remove after CloudFront deployment completes."
   type        = string

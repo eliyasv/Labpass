@@ -9,6 +9,7 @@ resource "aws_s3_bucket" "state" {
   force_destroy = false
   lifecycle {
     # Block Terraform destruction of the state bucket while this resource is configured.
+    # Intentional teardown requires a separate reviewed change and private state backup.
     prevent_destroy = true
   }
 }

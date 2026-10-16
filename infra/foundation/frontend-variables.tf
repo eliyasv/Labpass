@@ -1,3 +1,5 @@
+# Public hostname resolves to CloudFront; the separate origin hostname resolves
+# to the ALB and must match its certificate. The hosted zone already exists.
 variable "frontend" {
   description = "CloudFront/S3 delivery and DNS in an existing authoritative public Route 53 zone. Null leaves delivery disabled."
   type = object({

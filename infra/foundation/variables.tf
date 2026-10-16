@@ -1,3 +1,4 @@
+# Account/region guards are evaluated before provisioning with operator credentials.
 variable "aws_account_id" {
   description = "Actual AWS account approved for this demo; prevents applying to another account."
   type        = string
@@ -33,6 +34,7 @@ variable "name_prefix" {
   }
 }
 
+# Pin the database major/minor; the database module checks regional orderability.
 variable "database_engine_version" {
   description = "PostgreSQL 18 minor version; orderability is checked in the target region."
   type        = string

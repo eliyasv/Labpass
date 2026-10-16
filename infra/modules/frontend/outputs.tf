@@ -11,6 +11,7 @@ output "frontend_delivery" {
   } : null
 }
 
+# Keep this dependency separate from ALB/CloudFront so certificate wiring has no cycle.
 output "certificates" {
   description = "DNS-validated ACM certificate ARNs keyed by viewer and origin; empty when frontend delivery is disabled."
   value       = { for name, certificate in aws_acm_certificate_validation.site : name => certificate.certificate_arn }

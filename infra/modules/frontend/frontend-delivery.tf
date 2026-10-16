@@ -4,6 +4,7 @@ locals {
   api_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 }
 
+# Hashed Vite assets can cache for a year without mixing cookies or query strings.
 resource "aws_cloudfront_cache_policy" "static" {
   for_each    = local.frontend_enabled ? toset(["assets"]) : toset([])
   name        = "${var.name_prefix}-${each.key}"
@@ -26,6 +27,7 @@ resource "aws_cloudfront_cache_policy" "static" {
   }
 }
 
+# Apply browser security headers consistently; HTML revalidates and API data is no-store.
 resource "aws_cloudfront_response_headers_policy" "site" {
   for_each = local.frontend_enabled ? toset(["shell", "assets", "api"]) : toset([])
   name     = "${var.name_prefix}-${each.key}"
@@ -76,12 +78,14 @@ resource "aws_cloudfront_distribution" "site" {
   price_class         = "PriceClass_100"
   wait_for_deployment = true
 
+  # Frontend requests are signed with OAC; the bucket policy admits this distribution.
   origin {
     origin_id                = "frontend"
     domain_name              = aws_s3_bucket.frontend[0].bucket_regional_domain_name
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend[0].id
   }
 
+  # The HTTPS ALB origin checks the injected header in addition to CloudFront source IPs.
   origin {
     origin_id           = "api"
     domain_name         = trimsuffix(aws_route53_record.origin[0].fqdn, ".")
@@ -102,6 +106,7 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
+  # Fetch the current HTML entry point; only the explicit /assets/* rule caches content.
   default_cache_behavior {
     target_origin_id           = "frontend"
     allowed_methods            = ["GET", "HEAD"]
@@ -112,6 +117,7 @@ resource "aws_cloudfront_distribution" "site" {
     compress                   = true
   }
 
+  # Forward API methods/cookies/query strings without caching or SPA error fallbacks.
   dynamic "ordered_cache_behavior" {
     for_each = ["/api", "/api/*"]
     content {

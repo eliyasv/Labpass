@@ -1,3 +1,4 @@
+# Fail planning if this PostgreSQL version/class/storage combination is unavailable.
 data "aws_rds_orderable_db_instance" "postgres" {
   engine                     = "postgres"
   engine_version             = var.database_engine_version
@@ -10,6 +11,7 @@ resource "aws_db_subnet_group" "main" {
   subnet_ids = var.database_subnet_ids
 }
 
+# Require encrypted client connections and SCRAM password authentication.
 resource "aws_db_parameter_group" "postgres" {
   name   = "${var.name_prefix}-postgres18"
   family = "postgres18"
@@ -38,6 +40,7 @@ locals {
   database_clients = toset(["api", "relay", "consumer", "migration", "bootstrap"])
 }
 
+# Separate client groups let RDS admit each workload without opening a VPC-wide CIDR.
 resource "aws_security_group" "database_client" {
   for_each    = local.database_clients
   name        = "${var.name_prefix}-${each.key}"
@@ -63,6 +66,7 @@ resource "aws_vpc_security_group_egress_rule" "postgres" {
   to_port                      = 5432
 }
 
+# AWS APIs and image/package retrieval use HTTPS through the application NAT path.
 resource "aws_vpc_security_group_egress_rule" "https" {
   for_each          = local.database_clients
   security_group_id = aws_security_group.database_client[each.key].id
@@ -72,6 +76,8 @@ resource "aws_vpc_security_group_egress_rule" "https" {
   to_port           = 443
 }
 
+# Single-AZ database in isolated subnets; the subnet group does not create a standby.
+# RDS manages the master password in Secrets Manager, outside Terraform values.
 resource "aws_db_instance" "main" {
   identifier                  = "${var.name_prefix}-postgres"
   engine                      = "postgres"
@@ -92,6 +98,7 @@ resource "aws_db_instance" "main" {
   backup_retention_period     = 7
   copy_tags_to_snapshot       = true
   deletion_protection         = var.database_deletion_protection
+  # Destruction preserves a final snapshot; repeated use of this name can collide.
   skip_final_snapshot         = false
   final_snapshot_identifier   = "${var.name_prefix}-postgres-final"
   auto_minor_version_upgrade  = true
@@ -106,6 +113,7 @@ resource "aws_db_instance" "main" {
   }
 }
 
+# Create containers only; the bootstrap job writes passwords and PostgreSQL roles.
 resource "aws_secretsmanager_secret" "database" {
   for_each                = toset(["api", "relay", "consumer", "migration"])
   name                    = "${var.name_prefix}/database/${each.key}"

@@ -1,3 +1,4 @@
+# Require an existing public zone containing the sender domain; delegation is external.
 data "aws_route53_zone" "email" {
   count        = local.confirmation_enabled ? 1 : 0
   zone_id      = var.confirmation_worker.hosted_zone_id
@@ -14,6 +15,7 @@ data "aws_route53_zone" "email" {
   }
 }
 
+# Attach suppression and delivery metrics to the domain's default sending configuration.
 resource "aws_sesv2_configuration_set" "confirmations" {
   count                  = local.confirmation_enabled ? 1 : 0
   configuration_set_name = local.confirmation_name
@@ -36,6 +38,7 @@ resource "aws_sesv2_email_identity" "confirmations" {
   }
 }
 
+# Publish SES's three Easy DKIM tokens so the service can verify and sign domain mail.
 resource "aws_route53_record" "email_dkim" {
   for_each = local.confirmation_enabled ? toset(["0", "1", "2"]) : toset([])
   zone_id  = data.aws_route53_zone.email[0].zone_id
@@ -45,6 +48,7 @@ resource "aws_route53_record" "email_dkim" {
   ttl      = 300
 }
 
+# Aggregate delivery/feedback metrics by configuration set, without recipient dimensions.
 resource "aws_sesv2_configuration_set_event_destination" "metrics" {
   count                  = local.confirmation_enabled ? 1 : 0
   configuration_set_name = aws_sesv2_configuration_set.confirmations[0].configuration_set_name
