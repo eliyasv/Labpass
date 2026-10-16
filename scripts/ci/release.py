@@ -49,8 +49,14 @@ UPDATE_FIELDS = {
 
 
 def run(args, *, capture=False, **kwargs):
+    # Keep plan/state stdout private while leaving command diagnostics visible.
     return subprocess.run(
-        args, cwd=ROOT, check=True, text=True, capture_output=capture, **kwargs
+        args,
+        cwd=ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE if capture else None,
+        **kwargs,
     )
 
 
@@ -604,6 +610,13 @@ def main():
         ]()
     except ValueError as error:
         raise SystemExit(str(error)) from None
+    except subprocess.CalledProcessError as error:
+        command = "Terraform command" if error.cmd[: len(TF)] == TF else "Command"
+        if command == "Terraform command" and len(error.cmd) > len(TF):
+            command = f"Terraform {error.cmd[len(TF)]}"
+        raise SystemExit(
+            f"{command} failed (exit {error.returncode}); no automatic rollback performed"
+        ) from None
     except Exception as error:  # noqa: BLE001 -- sanitize SDK/process errors at the CLI boundary.
         raise SystemExit(
             f"Release failed ({type(error).__name__}); no automatic rollback performed"

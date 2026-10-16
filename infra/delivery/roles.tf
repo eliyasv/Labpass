@@ -67,7 +67,8 @@ resource "aws_iam_role_policy" "metadata" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Resource = "*", Action = [
-        "ec2:Describe*", "autoscaling:Describe*", "elasticloadbalancing:Describe*",
+        "ec2:Describe*", "ec2:GetManagedPrefixListEntries", "ec2:GetInstanceUefiData",
+        "autoscaling:Describe*", "elasticloadbalancing:Describe*",
         "rds:Describe*", "rds:ListTagsForResource", "ecr:DescribeRepositories", "ecr:GetRepositoryPolicy", "ecr:ListTagsForResource",
         "sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:ListQueueTags",
         "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy",
@@ -76,7 +77,7 @@ resource "aws_iam_role_policy" "metadata" {
         "route53:GetHostedZone", "route53:ListResourceRecordSets", "route53:ListTagsForResource", "route53:GetChange",
         "cloudfront:GetDistribution", "cloudfront:GetDistributionConfig", "cloudfront:ListTagsForResource",
         "cloudfront:GetOriginAccessControl", "cloudfront:GetCachePolicy", "cloudfront:GetResponseHeadersPolicy",
-        "ses:GetEmailIdentity", "ses:GetConfigurationSet", "ses:GetConfigurationSetEventDestinations",
+        "ses:GetEmailIdentity", "ses:GetConfigurationSet", "ses:GetConfigurationSetEventDestinations", "ses:ListTagsForResource",
         "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:GetFunctionConcurrency", "lambda:GetFunctionCodeSigningConfig",
         "lambda:GetRuntimeManagementConfig", "lambda:ListVersionsByFunction", "lambda:GetAlias", "lambda:ListTags", "lambda:GetEventSourceMapping",
         "iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:GetInstanceProfile"
