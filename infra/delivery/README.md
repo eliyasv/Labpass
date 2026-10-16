@@ -9,7 +9,7 @@ Region: `us-east-1`. Requires Terraform 1.15.x and AWS provider 6.68.0.
 | OIDC provider | GitHub Actions; existing same-account provider can be reused |
 | Publish role | Exact repository/environment trust; image pushes to the two foundation ECR repositories |
 | Plan role | Foundation metadata reads, state reads/locking and private versioned plan writes; secret values denied |
-| Apply role | State writes, approved runtime updates, frontend object writes and restricted migration execution; secret values denied |
+| Apply role | State writes, runtime updates, API/relay launch validation, frontend object writes and restricted migration execution; secret values denied |
 | State bucket | Private, versioned, AES256 encrypted, TLS required, ACLs disabled, destruction protected |
 | Plan retention | Current/noncurrent objects under `plans/` expire after seven days; state versions are retained |
 | SSM document | Validated image digest, host lock, fixed migration helper commands |
