@@ -167,7 +167,8 @@ run "scoped_permissions_and_ses" {
       toset(jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[3].Action) == setunion(toset(local.lambda_eni_actions), toset(["ec2:DetachNetworkInterface"])) &&
       jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Principal.Service == "lambda.amazonaws.com" &&
       toset(jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Action) == toset(["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]) &&
-      jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Resource == var.lambda_repository.arn &&
+      aws_ecr_repository_policy.lambda[0].repository == var.lambda_repository.name &&
+      !contains(keys(jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0]), "Resource") &&
       toset(jsondecode(aws_ecr_repository_policy.lambda[0].policy).Statement[0].Condition.ArnLike["aws:SourceArn"]) == toset([local.confirmation_function_arn, "${local.confirmation_function_arn}:*"])
     )
     error_message = "Lambda service ENI management must be denied to function code; image retrieval must be restricted to the worker and repository."
@@ -194,6 +195,36 @@ run "scoped_permissions_and_ses" {
   }
 }
 
+run "verified_recipient_permissions" {
+  module { source = "../modules/confirmations" }
+  command = apply
+  variables {
+    confirmation_worker = merge(var.confirmation_worker, {
+      verified_recipient_emails = ["attendee@example.net", "tester+booking@example.org"]
+    })
+  }
+  assert {
+    condition = (
+      toset(jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Resource) == toset([
+        aws_sesv2_email_identity.confirmations[0].arn,
+        aws_sesv2_configuration_set.confirmations[0].arn,
+        "arn:aws:ses:us-east-1:123456789012:identity/attendee@example.net",
+        "arn:aws:ses:us-east-1:123456789012:identity/tester+booking@example.org",
+      ]) &&
+      jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Action == ["ses:SendEmail"] &&
+      jsondecode(aws_iam_role_policy.confirmation_runtime[0].policy).Statement[1].Condition.StringEquals["ses:FromAddress"] == var.confirmation_worker.sender_email
+    )
+    error_message = "Verified recipient identities must be exact, in-account ARNs and retain the sender-address and SendEmail restrictions."
+  }
+}
+
+run "reject_recipient_wildcard" {
+  module { source = "../modules/confirmations" }
+  command = plan
+  variables { confirmation_worker = merge(var.confirmation_worker, { verified_recipient_emails = ["*@example.net"] }) }
+  expect_failures = [var.confirmation_worker]
+}
+
 run "reject_unverified_sender_polling" {
   module { source = "../modules/confirmations" }
   command = plan
@@ -214,6 +245,28 @@ run "enable_verified_worker" {
       aws_lambda_event_source_mapping.confirmations[0].scaling_config[0].maximum_concurrency == 3
     )
     error_message = "Explicit activation must preserve a shared function/mapping concurrency cap."
+  }
+}
+
+run "shared_concurrency_worker" {
+  module { source = "../modules/confirmations" }
+  providers = { aws = aws.verified }
+  command   = apply
+  state_key = "shared-concurrency-worker"
+  variables {
+    confirmation_worker = merge(var.confirmation_worker, {
+      mapping_enabled     = true
+      reserve_concurrency = false
+    })
+  }
+  assert {
+    condition = (
+      aws_lambda_function.confirmations[0].reserved_concurrent_executions == -1 &&
+      aws_lambda_event_source_mapping.confirmations[0].scaling_config[0].maximum_concurrency == 2 &&
+      aws_lambda_event_source_mapping.confirmations[0].enabled &&
+      aws_lambda_event_source_mapping.confirmations[0].function_name == aws_lambda_alias.confirmations[0].arn
+    )
+    error_message = "Shared account concurrency must preserve the SQS invocation cap, verified-sender activation and versioned alias."
   }
 }
 
