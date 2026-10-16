@@ -82,6 +82,23 @@ run "private_state_and_oidc_boundaries" {
     error_message = "Plan and apply must read managed prefix-list entries, AMI UEFI data and SES tags during foundation refresh."
   }
   assert {
+    condition = alltrue([for policy in aws_iam_role_policy.metadata :
+      jsondecode(policy.policy).Statement[1].Resource == local.frontend_arn &&
+      alltrue([for action in [
+        "s3:ListBucket", "s3:GetBucketAcl", "s3:GetBucketCORS", "s3:GetBucketLogging",
+        "s3:GetBucketOwnershipControls", "s3:GetBucketPolicy", "s3:GetBucketPublicAccessBlock",
+        "s3:GetBucketRequestPayment", "s3:GetBucketVersioning", "s3:GetBucketWebsite",
+        "s3:GetBucketObjectLockConfiguration", "s3:GetEncryptionConfiguration",
+        "s3:GetAccelerateConfiguration", "s3:GetLifecycleConfiguration", "s3:GetReplicationConfiguration"
+        ] : anytrue([for allowed in jsondecode(policy.policy).Statement[1].Action :
+          action == allowed || (endswith(allowed, "*") && startswith(action, trimsuffix(allowed, "*")))
+      ])]) &&
+      !contains(jsondecode(policy.policy).Statement[1].Action, "s3:GetObject") &&
+      !contains(jsondecode(policy.policy).Statement[1].Action, "s3:*")
+    ])
+    error_message = "Both delivery roles must refresh S3 bucket settings with the actual IAM action names, scoped to the frontend bucket without object reads or S3 administration."
+  }
+  assert {
     condition = (
       !strcontains(aws_iam_role_policy.release.policy, "ssm:SendCommand") &&
       !strcontains(aws_iam_role_policy.release.policy, "ec2:CreateLaunchTemplateVersion") &&

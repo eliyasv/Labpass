@@ -83,7 +83,9 @@ resource "aws_iam_role_policy" "metadata" {
         "iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:GetInstanceProfile"
       ] },
       { Effect = "Allow", Resource = local.frontend_arn, Action = [
-        "s3:ListBucket", "s3:GetBucket*", "s3:GetEncryptionConfiguration", "s3:GetAccelerateConfiguration"
+        "s3:ListBucket", "s3:GetBucket*", "s3:GetEncryptionConfiguration", "s3:GetAccelerateConfiguration",
+        # These IAM action names omit "Bucket", unlike their S3 API operations.
+        "s3:GetLifecycleConfiguration", "s3:GetReplicationConfiguration"
       ] },
       { Effect = "Deny", Resource = "*", Action = ["secretsmanager:GetSecretValue", "secretsmanager:BatchGetSecretValue"] }
     ]
