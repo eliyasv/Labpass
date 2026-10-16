@@ -105,7 +105,9 @@ export async function registerAndSignIn(page: Page) {
   await page
     .getByRole("button", { name: "Create account →", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("Account created.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Account created." }),
+  ).toBeVisible();
   await signIn(page, account);
   return account;
 }
