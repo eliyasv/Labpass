@@ -125,9 +125,12 @@ aws elbv2 describe-target-health --region us-east-1 \
   --target-group-arn "${LABPASS_API_TARGET_GROUP_ARN:?Set the hosting output target-group ARN}"
 ```
 
-AWS boot/package retrieval, SSM registration, ECR/logging authorization, ALB TLS,
-target registration, scaling and refresh behaviour remain unverified. Offline
-verification is recorded in [Verification](verification.md#database-and-host-boundaries).
+The AWS deployment and protected release exercised package retrieval, SSM
+registration/migrations, ECR pulls, logging, ALB TLS/healthy targets and completed
+API/relay refreshes. Traffic-driven scaling and injected AZ/process failures have
+not been exercised. Relay EC2 health does not verify outbox processing.
+[Live evidence](verification.md#live-aws-verification) and
+[isolated host checks](verification.md#database-and-host-boundaries).
 
 References: [ALB origin restriction](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html),
 [AL2023 IMDSv2](https://docs.aws.amazon.com/linux/al2023/ug/imdsv2.html),

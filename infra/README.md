@@ -1,7 +1,7 @@
 # Infrastructure
 
-Terraform roots: `foundation/` for workloads; `delivery/` for OIDC roles and
-remote state storage. Region: `us-east-1`.
+Terraform roots: `foundation/` for workloads; `delivery/` for OIDC roles,
+remote state storage, the migration document and public DNS. Region: `us-east-1`.
 
 The foundation composes local `network`, `database`, `application`, `frontend`
 and `confirmations` modules. Shared ECR and SQS resources remain in the root.
@@ -99,11 +99,15 @@ to GitHub artifacts. Backend initialization, state migration and role setup:
 
 ## Integration status
 
-Release workflow code is implemented; GitHub/AWS configuration, live releases and
-alarms remain pending. CloudFront/S3/OAC, authoritative
-DNS, certificate issuance, EC2 bootstrap, database access, ALB TLS/health,
-Lambda/SQS permissions, SES verification/delivery and alias updates have not
-been verified in AWS.
+AWS deployment and a protected release have been verified: DNS/ACM/CloudFront
+routing, S3 frontend publication, EC2 startup, private RDS access with verified
+TLS, ALB health, SSM migrations, fleet refreshes, Lambda alias updates and
+SQS/Lambda/SES email delivery. The API tier spans two AZs; RDS is Single-AZ and
+outbound access uses one shared NAT gateway.
+
+Failure injection, live secret rotation, load measurements, traffic-driven
+scaling, alarms and backup restoration remain outstanding.
+[Evidence and limits](../docs/verification.md#live-aws-verification).
 
 [Infrastructure design](../docs/infrastructure.md) ·
 [Database runtime](../docs/database-runtime.md) ·
