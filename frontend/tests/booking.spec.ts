@@ -252,10 +252,32 @@ test("admin creation and capacity changes, with server enforcement below reserva
     .getByLabel("Workshop title", { exact: true })
     .fill("A new browser-created workshop");
   await page.getByLabel("Capacity", { exact: true }).fill("5");
-  await page
-    .getByRole("button", { name: "Create workshop", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toContainText("Workshop created.");
+  // Hold the refresh so the success notice and loading status coexist deterministically.
+  let resumeRefresh!: () => void;
+  const refreshPending = new Promise<void>((resolve) => {
+    resumeRefresh = resolve;
+  });
+  await page.route("**/api/workshops?*", async (route) => {
+    await refreshPending;
+    await route.continue();
+  });
+  try {
+    await page
+      .getByRole("button", { name: "Create workshop", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toHaveCount(2);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Workshop created." }),
+    ).toBeVisible();
+  } finally {
+    resumeRefresh();
+  }
+  await expect(
+    page.getByRole("form", {
+      name: "Capacity for A new browser-created workshop",
+      exact: true,
+    }),
+  ).toBeVisible();
 });
 
 test("real browser cookies, CSRF, Origin, and regular-user authorization", async ({
