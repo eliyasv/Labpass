@@ -49,9 +49,8 @@ NAT/S3 paths provide package, ECR, secret, SSM and logging access.
 
 The API refresh requests 100% minimum and 150% maximum healthy capacity; relay
 refresh requests 100%/200%. Temporary replacement instances require additional
-compute and database connection capacity. Metric-driven scaling policies remain
-pending. API two-AZ placement does not remove the shared NAT or Single-AZ RDS
-failure points.
+compute and database connection capacity. No metric-driven scaling policy is
+configured. RDS and the shared NAT remain Single-AZ dependencies.
 
 ## Startup and logs
 
@@ -73,7 +72,7 @@ action does not support repository-level resource permissions. SSM uses
 
 Relay configuration requires database and SQS settings; SES sender configuration
 is required only by the Lambda consumer. Relay process/EC2 health does not measure
-publication success. Outbox backlog and last-success alarms remain pending.
+publication success; investigate relay logs and outbox state separately.
 
 ## Bootstrap and migration jobs
 
@@ -125,12 +124,7 @@ aws elbv2 describe-target-health --region us-east-1 \
   --target-group-arn "${LABPASS_API_TARGET_GROUP_ARN:?Set the hosting output target-group ARN}"
 ```
 
-The AWS deployment and protected release exercised package retrieval, SSM
-registration/migrations, ECR pulls, logging, ALB TLS/healthy targets and completed
-API/relay refreshes. Traffic-driven scaling and injected AZ/process failures have
-not been exercised. Relay EC2 health does not verify outbox processing.
-[Live evidence](verification.md#live-aws-verification) and
-[isolated host checks](verification.md#database-and-host-boundaries).
+Deployment evidence and host-test coverage: [Verification](verification.md).
 
 References: [ALB origin restriction](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html),
 [AL2023 IMDSv2](https://docs.aws.amazon.com/linux/al2023/ug/imdsv2.html),
@@ -147,6 +141,5 @@ References: [ALB origin restriction](https://docs.aws.amazon.com/AmazonCloudFron
 | Lambda errors or queue age rises | Confirmation emails are delayed; committed bookings are retained | Lambda logs, SQS/DLQ metrics, consumer database access, SES sender/recipient status and concurrency; see [confirmation inspection](confirmation-worker.md#activation-and-inspection) |
 | Release fails after rollout starts | Runtime can be partially updated; there is no automatic rollback | Failed job, migration command, saved plan/state, ASG refresh/template versions and Lambda alias before starting another run; see [release failure handling](delivery.md#state-plan-review-and-failure-handling) |
 
-Alarms and injected AWS outage/recovery exercises are not implemented or verified.
-The [verification limits](verification.md#deployment-and-operational-limits)
-distinguish successful deployment from tested failure recovery.
+Failure-test coverage: [Verification](verification.md#deployment-and-operational-limits).
+Operational backlog: [Project status](project-status.md#remaining-infrastructure-and-operations-work).

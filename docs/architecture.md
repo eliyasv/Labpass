@@ -7,9 +7,8 @@ Deployment configuration: [Infrastructure](infrastructure.md) ·
 
 ![LabPass AWS infrastructure and delivery paths](../images/architecture.png)
 
-[Vector diagram](../images/architecture.svg). Deployment and a complete protected
-release were verified on 16 October 2026; see
-[live evidence](verification.md#live-aws-verification).
+[Vector diagram](../images/architecture.svg) ·
+[Deployment evidence](verification.md#live-aws-verification).
 
 Routing and access:
 
@@ -71,16 +70,27 @@ GitHub Actions release jobs use OIDC constrained to the repository and protected
 environment. CI runs without AWS credentials and gates releases on tests and
 security scans. The release workflow publishes scanned artifacts, saves a private
 runtime update plan, runs one migration command, waits for fleet refreshes and
-smoke-tests through CloudFront. A complete live release passed these stages,
-including the required-reviewer and dev-only environment checks. Repository
-ruleset enforcement and injected release failures require separate validation.
-Configuration and boundaries: [CI/CD and release security](delivery.md).
+smoke-tests through CloudFront. Configuration and permissions:
+[CI/CD and release security](delivery.md).
 Rolling updates require backward-compatible migrations; changing stored
 data can make an image rollback insufficient and require a forward fix or restore.
 
-CloudWatch runtime logs and SES delivery metrics are configured. Application,
-queue and infrastructure alarms, a backup/restore runbook and a restoration
-exercise remain outstanding. See the [operations checklist](checklist.md).
+CloudWatch runtime logs and SES delivery metrics are configured; operational
+alarms are not. Remaining work: [Project status](project-status.md).
+
+## Engineering decisions and evidence
+
+| Decision | Reason | Supporting evidence |
+| --- | --- | --- |
+| Private S3 frontend behind CloudFront | Serve a static React build without a frontend EC2 host; use one browser origin for frontend and API | [CloudFront origins](../images/cloudfront-origin.png) and deployed browser flows |
+| ALB and API instances across two AZs | Distribute requests and replace unhealthy API instances | [Two healthy targets](../images/alb-resoursemap.png) and completed release refreshes |
+| Separate OIDC publish, plan and apply roles | Use temporary AWS credentials and separate artifact publication from runtime changes | [IAM policies](../infra/delivery/roles.tf) and [successful release](../images/relessesucces.png) |
+| Reuse scanned images and apply a verified saved plan | Preserve the artifact checked by CI and bind deployment to the reviewed plan/configuration | [Release regressions](../scripts/tests/test_release.py) cover disallowed changes, manifest mismatches and migration failure; failure injection uses stand-ins, while the normal release passed on AWS |
+| Transactional outbox with SQS/Lambda email processing | Commit the booking independently of external email delivery, then retry failed work | [Worker tests](../backend/tests/test_background.py) cover publication/send failures preserving bookings; [received email](../images/labpassreservationmail.png) confirms the live path |
+| PostgreSQL as the authoritative inventory store | Update capacity, booking, idempotency and outbox records atomically without coordinating separate inventory stores | [Real-database contention test](verification.md#booking-correctness-and-authentication): 100 contenders for 20 seats produce 20 bookings and 80 capacity conflicts; this measures correctness, not HTTP throughput |
+
+Test methods, untested failure scenarios and coverage limits:
+[Verification](verification.md#deployment-and-operational-limits).
 
 ## Application scope
 
@@ -153,9 +163,7 @@ source ARN validation, time admission checks and per-record failure responses.
 Real PostgreSQL plus stubbed SDK responses verify transactions; the official
 runtime emulator verifies offline packaging. Terraform defines an optional mapping
 with `ReportBatchItemFailures`, a published-version alias and bounded concurrency.
-The deployed pipeline delivered reservation emails through SQS, Lambda and SES.
-Injected AWS failures and redrive remain unverified. See the
-[AWS worker contract](aws-workers.md) and
+See the [AWS worker contract](aws-workers.md) and
 [Lambda partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
 SES identity/DKIM, configuration-set suppression/metrics, Lambda VPC permissions

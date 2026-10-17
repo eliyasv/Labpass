@@ -1,8 +1,7 @@
 # AWS worker runtime contract
 
-The AWS relay/SQS/Lambda/SES pipeline delivered reservation emails in the deployed
-application. Unit tests and the runtime-emulator smoke cover isolated failure and
-packaging cases. Local Compose uses ElasticMQ and Mailpit without AWS credentials.
+The outbox relay runs on EC2; Lambda consumes SQS messages and sends through SES.
+Local Compose uses ElasticMQ and Mailpit without AWS credentials.
 
 ## Entry points and configuration
 
@@ -102,10 +101,8 @@ Rejection/unknown acceptance retains a retryable delivery; cancelled bookings
 observed before claiming are skipped. SES acceptance followed by DB completion
 failure can send a duplicate after lease expiry.
 See [SES SendEmail](https://docs.aws.amazon.com/boto3/latest/reference/services/sesv2/client/send_email.html).
-The deployed sender domain and DKIM were verified, and a reservation email
-reached the recipient. SES sandbox recipient restrictions and account quotas must
-still be checked for each deployment. Bounce/complaint application handling is
-not implemented.
+Check SES domain/DKIM status, sandbox recipient restrictions and account quotas
+for each deployment. Bounce/complaint application handling is not implemented.
 
 ## Permissions and connectivity
 

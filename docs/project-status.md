@@ -1,8 +1,6 @@
 # Project status
 
-Implementation and verification as of 16 October 2026. AWS deployment, the
-booking/email path and a protected GitHub Actions release have been verified.
-Evidence and verification limits: [Verification](verification.md).
+Deployment and test evidence: [Verification](verification.md).
 
 ## Implemented
 
@@ -23,15 +21,6 @@ Evidence and verification limits: [Verification](verification.md).
 Product scope and consistency limits: [Architecture](architecture.md).
 Inputs and operator commands: [Infrastructure](../infra/README.md),
 [Development](development.md) and [Delivery](delivery.md).
-
-## Verified on AWS
-
-- [x] DNS and ACM-backed HTTPS routing through CloudFront to S3 and the API.
-- [x] Workshop management, seat reservation and cancellation through the deployed frontend.
-- [x] Private RDS access, database bootstrap and runtime connections with verified TLS.
-- [x] EC2 startup, ECR pulls, SSM migration execution, healthy ALB targets and completed fleet refreshes.
-- [x] SQS-to-Lambda processing, SES domain/DKIM verification and received reservation email.
-- [x] Required-reviewer/dev-only environments, OIDC roles and a complete saved-plan release with Lambda alias update.
 
 ## Improvement priorities
 

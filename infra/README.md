@@ -97,17 +97,10 @@ sensitive input flag. Release plans use private versioned S3 and are not uploade
 to GitHub artifacts. Backend initialization, state migration and role setup:
 [CI/CD and release security](../docs/delivery.md).
 
-## Integration status
+## Validation
 
-AWS deployment and a protected release have been verified: DNS/ACM/CloudFront
-routing, S3 frontend publication, EC2 startup, private RDS access with verified
-TLS, ALB health, SSM migrations, fleet refreshes, Lambda alias updates and
-SQS/Lambda/SES email delivery. The API tier spans two AZs; RDS is Single-AZ and
-outbound access uses one shared NAT gateway.
-
-Failure injection, live secret rotation, load measurements, traffic-driven
-scaling, alarms and backup restoration remain outstanding.
-[Evidence and limits](../docs/verification.md#live-aws-verification).
+[Deployment and test results](../docs/verification.md) ·
+[Capabilities, trade-offs and remaining work](../docs/project-status.md).
 
 [Infrastructure design](../docs/infrastructure.md) ·
 [Database runtime](../docs/database-runtime.md) ·

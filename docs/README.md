@@ -10,6 +10,9 @@
 | 4 | [Terraform modules](../infra/modules/README.md) | Resource ownership, typed interfaces, module dependencies and provider/state boundaries |
 | 5 | [Verification](verification.md) | Live AWS evidence, infrastructure/security regressions and operational limits |
 
+Design rationale and supporting checks:
+[Engineering decisions and evidence](architecture.md#engineering-decisions-and-evidence).
+
 ## Service configuration
 
 | Guide | Scope |
@@ -28,4 +31,4 @@
 | [Development](development.md) | Local setup, API requests, test commands, worker recovery and dependency updates |
 
 Implemented capabilities, completed deployment checks and remaining operational
-and application work: [Project status](checklist.md).
+and application work: [Project status](project-status.md).

@@ -2,9 +2,6 @@
 
 Terraform defines networking, repositories, queues, private RDS, runtime access,
 application hosting, frontend delivery and confirmation workloads in `us-east-1`.
-The deployment and a complete protected release were verified on AWS on
-16 October 2026. [Evidence](verification.md#live-aws-verification).
-
 The foundation composes five local modules: network, database, application,
 frontend and confirmations. Shared ECR repositories and SQS queues remain in
 the root. Provider configuration and state ownership remain at the root.
@@ -51,9 +48,9 @@ and [NAT availability](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gate
 | Egress | One zonal NAT shared by application subnets | Both application AZs depend on one AZ for NAT traffic |
 | Lambda | VPC-connected through both application subnets; bounded SQS concurrency | Database and egress dependencies remain |
 
-The application tier is Multi-AZ; the complete deployment is not resilient to
-every AZ failure. ASGs provide instance replacement and rolling refreshes;
-load-based scaling and AZ-outage recovery have not been demonstrated.
+The API tier is Multi-AZ, with Single-AZ database and NAT dependencies. ASGs
+provide instance replacement and rolling refreshes; no traffic-driven scaling
+policy is configured.
 
 ## Image repositories
 
@@ -106,16 +103,7 @@ Runtime IAM roles read their own secret. The bootstrap role alone reads the
 master secret and writes role secrets. See [Database runtime](database-runtime.md)
 for privileges, configuration and commands.
 
-## Verification and remaining integration
-
-Formatting and provider-schema validation passed. Mocked foundation tests
-verify topology, routing isolation, default-group rules, repository settings,
-queue/database configuration, hosting, frontend delivery, confirmation delivery,
-scoped runtime access, combined module integration and invalid configuration.
-Delivery-root tests cover state and release permissions. Live API and worker
-execution verified private database connectivity and TLS; the release exercised
-OIDC, ECR, SSM and runtime update permissions. Negative access tests and live
-secret rotation remain separate checks.
+## Workload integration
 
 Hosting uses separate API/relay ASGs and explicit operator launch templates with
 SSM, ECR and CloudWatch logging access. Configuration and limits:
@@ -133,11 +121,8 @@ zone, suppression and configuration-set delivery metrics. Mapping activation
 requires verified SES/DKIM; database bootstrap and account/recipient checks remain
 operator prerequisites. See [Confirmation worker deployment](confirmation-worker.md).
 
-The live release verified frontend publication, DNS and certificates, private
-compute/database integration, Lambda updates and SES mailbox delivery.
-Injected SQS failures/redrive, alarms and backup restoration remain unverified.
 Hosted-zone ownership and registrar delegation are prerequisites for each
 deployment; the delivery root can own the hosted zone, while registrar settings
 are managed separately.
 See [Terraform commands](../infra/README.md) and
-[verification evidence](verification.md#infrastructure-and-release-checks).
+[deployment and test results](verification.md).
