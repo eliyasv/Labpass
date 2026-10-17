@@ -119,8 +119,7 @@ require an invalidation because edge caching is disabled. Content-type metadata
 must match the uploaded files; publication uses the AWS CLI's MIME detection for
 assets. Serialize releases so older HTML cannot overwrite a newer deployment.
 The [release workflow](delivery.md#release-boundaries) implements serialized
-publication in this order and completed successfully in the live release.
-An asset-retention cleanup policy is not configured.
+publication in this order. An asset-retention cleanup policy is not configured.
 
 ## Deployment verification
 
@@ -131,9 +130,5 @@ Origin/CSRF rejection and independent user sessions. Confirm API responses and
 errors are not cached, asset responses have the expected MIME/cache headers, and
 an unrelated CloudFront distribution cannot bypass the ALB token check.
 
-Offline checks: [Terraform](../infra/README.md#offline-checks).
-The deployed frontend and API were exercised through the public HTTPS hostname,
-and the live release completed frontend publication and readiness checks.
-Direct anonymous S3 denial, unrelated-distribution ALB rejection and detailed
-cache/cookie checks remain separate validation tasks.
-[Live evidence](verification.md#live-aws-verification).
+[Offline checks](../infra/README.md#offline-checks) ·
+[Deployment evidence and coverage](verification.md).

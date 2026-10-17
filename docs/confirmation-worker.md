@@ -127,8 +127,5 @@ aws lambda get-event-source-mapping --region us-east-1 \
   --uuid "${LABPASS_CONFIRMATION_MAPPING_UUID:?Set the worker output mapping UUID}"
 ```
 
-Offline verification: [Infrastructure and release checks](verification.md#infrastructure-and-release-checks).
-The live deployment and release exercised image retrieval, VPC/database access,
-runtime IAM, SES domain/DKIM verification, mailbox delivery and alias updates.
-Injected AWS SQS partial failures/redrive and SES rejection recovery remain
-unverified. [Live evidence](verification.md#live-aws-verification).
+[Infrastructure tests](verification.md#infrastructure-and-release-checks) ·
+[Deployment evidence and coverage](verification.md).

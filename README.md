@@ -279,25 +279,23 @@ docs/          Architecture, development guides and verification reports
 
 ## Project status
 
-AWS deployment and a complete GitHub Actions release have been verified, including
-HTTPS routing, workshop management, reservations, cancellation and confirmation
-email delivery. The screenshots above capture the deployed application and
-successful pipeline runs. Traffic-driven scaling, WAF and distributed
-authentication throttling are not configured. Load testing, CloudWatch alarms and
-a backup restoration exercise remain outstanding. See the
-[implemented features and trade-offs](docs/checklist.md#implemented),
-[verification limits](docs/verification.md#deployment-and-operational-limits) and
-[improvement priorities](docs/checklist.md#improvement-priorities).
+Deployed and exercised on AWS: HTTPS routing, workshop management, reservations,
+cancellation, confirmation email delivery and a protected GitHub Actions release.
+
+[Features and trade-offs](docs/project-status.md#implemented) ·
+[Evidence and limits](docs/verification.md) ·
+[Improvement priorities](docs/project-status.md#improvement-priorities)
 
 ## Documentation
 
 | Guide | Scope |
 | --- | --- |
 | [Infrastructure](docs/infrastructure.md) | Subnet routing, availability, scaling limits and state ownership |
+| [Engineering decisions](docs/architecture.md#engineering-decisions-and-evidence) | Design rationale, supporting tests/deployment evidence and verification boundaries |
 | [CI/CD and release security](docs/delivery.md) | OIDC roles, security gates, approvals, plans, migrations and rollout |
 | [Application hosting](docs/application-hosting.md) | EC2 startup, health checks, refreshes, SSM and failure investigation |
 | [Terraform modules](infra/modules/README.md) | Resource ownership, interfaces and dependency boundaries |
 | [Verification](docs/verification.md) | Live AWS evidence, infrastructure/security checks and operational limits |
 
 [All technical guides](docs/README.md) · [Terraform commands](infra/README.md) ·
-[Project status](docs/checklist.md)
+[Project status](docs/project-status.md)
