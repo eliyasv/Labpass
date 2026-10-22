@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.14@sha256:27483b5d8a13e85d0f8207706759a30d6a7c89e60aa9d48ec926b445bdc518d2 AS aws-base
+FROM public.ecr.aws/lambda/python:3.14@sha256:fc4e15a5e09e2c9b6184810ea0fdc87afe1c1c734c98cbe27d739a35c3f15e7e AS aws-base
 
 # Update OS packages and install verified wheels; strip installers and the local emulator.
 FROM aws-base AS runtime
