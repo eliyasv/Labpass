@@ -92,6 +92,164 @@ alarms are not. Remaining work: [Project status](project-status.md).
 Test methods, untested failure scenarios and coverage limits:
 [Verification](verification.md#deployment-and-operational-limits).
 
+## Platform choices
+
+The explanations below connect the current platforms to the implemented workload
+and operating model. Alternatives identify other viable designs, without implying
+that a comparative prototype or benchmark was completed. Cost and performance
+advantages have not been measured.
+
+### EC2, Docker and systemd for the API
+
+The API is a continuously running FastAPI process with a bounded PostgreSQL
+connection pool. EC2 provides an explicit host lifecycle: launch templates define
+startup, Docker runs a digest-pinned image, systemd restarts the container, and the
+ALB/ASG replace unhealthy instances and coordinate rolling refreshes. SSM provides
+operator access and controlled migration execution. This makes host startup,
+container supervision and deployment behavior directly inspectable in the
+repository. See [host operations](application-hosting.md).
+
+The accepted cost is responsibility for AMI updates, host packages, Docker,
+bootstrap failures and fleet capacity. An ASG capacity range alone does not provide
+traffic-driven scaling. ECS with Fargate is an alternative if reducing host
+management becomes the priority; Fargate manages the underlying compute
+infrastructure, while application configuration, database limits and deployment
+verification still need attention. No comparison establishes that EC2 is cheaper
+or faster for LabPass. See [ECS compute options](https://aws.amazon.com/ecs/faqs/).
+
+### EC2 for outbox polling; Lambda for queued confirmations
+
+The two workers have different entry points. The relay continuously polls
+PostgreSQL for due outbox rows; publishing to SQS happens only after a booking has
+committed. Running it as a supervised EC2 process preserves a database pool across
+polls and reuses the API image with a different command, IAM role and SQL role.
+Its separate ASG keeps publication work outside the API request process. The
+trade-off is an always-running host and a baseline of one relay; EC2 health alone
+does not establish that events are being published.
+
+The confirmation consumer processes bounded SQS batches. A
+[Lambda event-source mapping](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+handles queue polling and invocation, so this worker needs no separately operated
+consumer host. The handler returns individual failures and records delivery claims
+in PostgreSQL. Lambda adds invocation deadlines and concurrency controls that must
+fit database capacity; it also uses a separate runtime image. Scheduled relay
+invocations or an ECS worker service are alternatives to evaluate if polling delay,
+host overhead or runtime constraints become a problem. Neither worker platform
+removes the duplicate-email ambiguity after SES acceptance. See
+[worker contracts](aws-workers.md).
+
+### RDS PostgreSQL for transactional state
+
+Capacity, bookings, idempotency records and outbox events share one PostgreSQL
+transaction. Row locks and constraints enforce the booking rules without a second
+inventory store. Adding DynamoDB or a cache as another authoritative store would
+require a different consistency design; the current service relies on SQL joins,
+foreign keys and row locks. The contention test supports this design's correctness,
+but does not establish its throughput.
+
+RDS provides the managed database host, configured backups and managed master
+credentials, avoiding a separately maintained PostgreSQL EC2 host. AWS handles
+underlying infrastructure and OS maintenance; schema migrations, access grants,
+capacity planning and recovery verification remain project responsibilities. The
+configured Single-AZ instance remains a shared failure point, and popular-workshop
+writes serialize. Revisit availability through recovery requirements and scaling
+through measured lock waits and connection use. See
+[RDS responsibilities](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Welcome.html)
+and [database configuration](database-runtime.md).
+
+### Private S3 and CloudFront for the frontend
+
+The React application builds to static files and requires no server-side rendering.
+S3 stores those files behind OAC, while CloudFront routes both static and API
+requests under one browser origin. This fits the cookie/Origin/CSRF contract and
+avoids maintaining a frontend application host in AWS. The Nginx container remains
+useful for local Compose routing.
+
+The accepted complexity is CloudFront cache/forwarding policy, origin protection,
+certificate wiring and ordered asset publication. An Nginx host is an alternative
+for static delivery; a server-rendered frontend would need a runtime beyond this
+static build. The current arrangement has no measured latency or cost advantage
+over those alternatives. See [frontend routing and publication](frontend-delivery.md).
+
+### Terraform and GitHub Actions for infrastructure and releases
+
+Terraform represents resource ownership, dependencies and reviewed changes; GitHub
+Actions coordinates checks, scanned artifacts, approvals and deployment. Separate
+OIDC roles divide publication, planning and application. Together, they connect
+the tested commit and image digests to a verified saved plan without permanent AWS
+keys in CI. See [release boundaries](delivery.md#release-boundaries).
+
+The trade-off is maintaining state, role policies, release guards and bootstrap
+procedures alongside the application. Another infrastructure-as-code tool or CI
+service could implement similar controls; the documented evidence establishes
+this pipeline's normal release path, rather than superiority over another tool.
+Revisit the tooling if its maintenance or integration requirements change.
+
+## Failure behavior
+
+A successful booking response follows the commit of inventory, booking,
+idempotency and outbox records. Email processing happens afterward and cannot
+undo that commit. The table describes behavior implied by the code and configured
+infrastructure; it is not a record of injected AWS outages. Live failure and
+recovery coverage remains limited as described in
+[verification](verification.md#deployment-and-operational-limits).
+
+| Failure | User-visible effect and retained state | Recovery behavior and limit |
+| --- | --- | --- |
+| API container or EC2 instance stops | In-flight requests can fail or lose their responses. Another healthy API target can serve requests if its dependencies remain available. Committed state and sessions are in PostgreSQL, outside the failed instance. | systemd restarts stopped containers; the API ASG uses ALB health checks for instance replacement. Startup depends on image pulls, secrets and database access. There is no measured replacement time or guarantee of uninterrupted requests. |
+| RDS is unreachable or rejects connections | Workshop reads, authentication, bookings and cancellation can fail; readiness also depends on RDS. Relays and consumers cannot read authoritative events or record delivery state. Uncommitted mutations roll back; a lost commit acknowledgement leaves an uncertain result. | Processing can resume when database access returns, subject to retry limits and queue retention. The configured database is Single-AZ, with no Multi-AZ standby. Backups are configured, but restore time and recoverable data loss have not been demonstrated. |
+| Shared NAT egress fails | Existing private API-to-RDS connections do not use NAT and may remain usable. AWS API calls and package retrieval using that route can fail, delaying secrets refresh, image pulls, logging and confirmations. The S3 gateway endpoint covers only its configured S3 path. | Restore the egress path before relying on new instances or expired credential caches. Both application AZs share this NAT; adding API instances does not provide independent egress. The effect on an existing process depends on which outbound calls it needs. |
+| Secrets Manager retrieval fails | A process with an unexpired five-minute database credential cache may continue. When a refresh is required, the expired pool is retired and new work fails rather than falling back to expired cached credentials. | The API suppresses repeated secret calls for five seconds after an SDK retrieval error, then permits another attempt. Workers retry through their normal loop or SQS handling. Restoring access does not bypass database credential or role validation. |
+| Relay stops or SQS publication fails | Bookings can still commit while confirmations wait. Unpublished events remain in PostgreSQL with retry metadata; a running or EC2-healthy relay does not prove publication progress. | The relay resumes polling after restart. Publication failures back off and stop after five committed attempts, retaining failed rows for inspection. A successful publish followed by failed bookkeeping can publish the same event ID again. Exhausted rows need operator recovery. |
+| Lambda cannot process a record, or SES rejects/fails a send | The booking remains valid, but confirmation is delayed or absent. Failed records remain retryable through the configured partial-batch response. Sent/skipped delivery records suppress known duplicates. | Failed records can be received again and eventually reach the DLQ after repeated receives. Delivery claims also have a five-attempt limit. SES acceptance followed by failed database completion can still produce another email after lease expiry. Persistent failures require investigation before replay. |
+| Release fails | Migration failure stops runtime rollout. Failure after apply or rollout begins can leave a partially updated fleet or frontend publication. Existing bookings are not intentionally reverted by release handling. | Inspect migration status, Terraform state, ASG template/refresh state and the Lambda alias before another release. No automatic rollback is implemented; an older image may be incompatible with the current schema or data. |
+
+### Request errors and uncertain outcomes
+
+The API maps handled connection, lock, pool and cloud-runtime errors to HTTP 503
+with `database_unavailable_retry_same_key` and `Retry-After: 1`. Other SQLAlchemy
+errors return a sanitized HTTP 500. A failure in the browser, CloudFront or ALB
+may instead produce a network error or a response outside this API error format.
+The browser uses a 15-second request timeout and does not automatically retry
+writes. See [API error handling](../backend/labpass/app.py) and
+[browser requests](../frontend/src/api.ts).
+
+A timeout or server error does not establish whether a booking committed. The
+frontend retains the same booking key for an uncertain attempt, allowing the next
+explicit retry to recover the existing booking, including when inventory is now
+full. A new key must not be used merely because the first response was lost.
+This protection depends on retaining the attempt metadata; browser storage can
+be unavailable. Cancellation retries cannot release a seat twice. Registration,
+login and admin creation do not share the booking idempotency contract, so their
+state must be checked before repeating an uncertain action. See
+[inventory and retries](#inventory-and-retries) and
+[frontend behavior](#frontend-and-local-routing).
+
+### Detection and recovery boundaries
+
+Liveness only establishes that the API process can respond. Readiness queries the
+database and required schema; it does not check SQS publication, SES acceptance or
+mailbox delivery. Relay EC2 health likewise cannot detect a stalled outbox loop.
+Component logs and queue/SES metrics support investigation, but operational alarms
+are not configured. Use [host failure investigation](application-hosting.md#failure-investigation)
+and [confirmation inspection](confirmation-worker.md#activation-and-inspection)
+to locate the failed stage.
+
+Automatic retries are bounded. The source queue retains messages for four days
+and the DLQ for fourteen days; waiting indefinitely for a dependency to recover
+can lose queued work. Published outbox rows are not automatically republished
+when a queue message expires. Retained database records support investigation,
+but recovery must account for whether an email was already accepted and whether
+its delivery state permits another attempt. A replay can duplicate an email whose
+previous acceptance is uncertain. See [queue configuration](infrastructure.md#confirmation-queues).
+
+The [reset/replay commands](development.md#worker-recovery) target local Compose.
+There is no equivalent cloud recovery CLI in the AWS relay entry point. AWS
+operator recovery must coordinate failed database records and SQS/DLQ messages;
+its procedure and failure/redrive behavior still require deployment validation.
+Release recovery limits are documented in
+[delivery failure handling](delivery.md#state-plan-review-and-failure-handling).
+
 ## Application scope
 
 FastAPI uses synchronous SQLAlchemy sessions and psycopg, with PostgreSQL as the
