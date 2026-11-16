@@ -1,5 +1,29 @@
 # CI/CD and release security
 
+CI validates a commit. Release deploys its checked artifacts to existing AWS
+workloads. Terraform provisions and updates resources; the workflow coordinates
+tests, approvals, migrations, rollout and frontend publication.
+
+## Release flow
+
+```text
+dev commit → preflight → CI → approval: publish → ECR image digests
+  → approval: plan → private S3 plan + manifest
+  → approval: apply → migrate → Terraform apply → verify EC2/Lambda
+  → upload static assets → upload HTML → public readiness check
+```
+
+The workflow file defines job order and permissions. Each deployment job calls
+`scripts/ci/release.py` to perform its stage. Terraform state in S3 records the
+managed foundation resources; the saved plan records one proposed update. The
+manifest ties that update to the commit, run and configuration, so apply can
+reject a changed plan or changed inputs.
+
+The plan stage does not change running workloads. It still reads AWS,
+takes a Terraform lock and writes plan artifacts to S3; the preceding publish
+stage has already pushed images to ECR. Approving apply authorizes the migration
+and runtime update. A green CI run alone does not deploy the site.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs for pull requests and pushes to `dev`, manual

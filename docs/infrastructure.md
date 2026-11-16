@@ -7,6 +7,9 @@ frontend and confirmations. Shared ECR repositories and SQS queues remain in
 the root. Provider configuration and state ownership remain at the root.
 [Module interfaces](../infra/modules/README.md).
 
+[Component roles and request flows](architecture.md) ·
+[Application transaction mechanics](application-mechanics.md).
+
 ## Network boundaries
 
 A `10.42.0.0/16` VPC spans two standard availability zones discovered in the
@@ -17,6 +20,12 @@ target account. Each zone has separate public, application and database subnets.
 | Public | `10.42.0.0/24`, `10.42.1.0/24` | Internet gateway |
 | Application | `10.42.10.0/24`, `10.42.11.0/24` | Shared zonal NAT; S3 gateway endpoint |
 | Database | `10.42.20.0/24`, `10.42.21.0/24` | Local VPC route only |
+
+Browser requests reach CloudFront, then the public ALB; the ALB forwards API
+traffic into the application subnets. API/worker connections reach RDS through
+local VPC routing. They do not pass through the NAT gateway. NAT provides outbound
+access from private workloads to external endpoints, including AWS service APIs;
+the S3 gateway endpoint provides the separate same-region S3 path.
 
 Automatic public IP assignment is disabled on all subnets. The default security
 group has no ingress or egress rules. Separate API, relay, consumer, migration
@@ -33,7 +42,8 @@ database failover.
 
 The S3 gateway endpoint is attached to both application route tables. It provides
 a route for same-region S3 access, including ECR image layers. Other service and
-bootstrap traffic uses the NAT path. IAM and service policies still control access.
+bootstrap traffic uses the NAT path; no interface endpoints are configured.
+IAM and service policies still control access.
 See [ECR VPC connectivity](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html)
 and [NAT availability](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-basics.html).
 
@@ -51,6 +61,17 @@ and [NAT availability](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gate
 The API tier is Multi-AZ, with Single-AZ database and NAT dependencies. ASGs
 provide instance replacement and rolling refreshes; no traffic-driven scaling
 policy is configured.
+
+### Availability alternatives
+
+| Change | Benefit | Trade-off |
+| --- | --- | --- |
+| NAT gateway per AZ | Independent outbound path for each application AZ | Additional gateway cost |
+| Interface endpoints in both AZs, alongside the S3 gateway endpoint | Private access to the configured AWS service APIs | Per-endpoint costs; does not provide general internet/package access |
+| RDS Multi-AZ DB instance | Managed failover to a standby | Additional database cost; the standby does not serve read traffic |
+
+References: [NAT designs](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html),
+[RDS Multi-AZ DB instances](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZSingleStandby.html).
 
 ## Image repositories
 
@@ -75,9 +96,20 @@ Relay/consumer SQS permissions and the optional Lambda event-source mapping are
 defined. The mapping targets a published-version alias, starts disabled and uses
 partial batch failures with bounded SQS concurrency. Function-level reserved
 concurrency is optional. See
-[the AWS worker contract](aws-workers.md#sqs-lambda-and-email-settings).
+[the AWS worker contract](confirmation-worker.md#sqs-lambda-and-email-settings).
 
 ## Configuration and state
+
+The two Terraform roots have separate ownership and state:
+
+| Root | Owns | State location |
+| --- | --- | --- |
+| `infra/delivery` | GitHub OIDC/roles, migration SSM document, state bucket and optional public DNS zone | Local state, preserved separately in restricted storage |
+| `infra/foundation` | Network, database, runtime workloads, frontend, repositories and queues | S3 bucket created by delivery; locking prevents concurrent Terraform writes |
+
+The delivery root creates the bucket before the foundation uses it. Terraform
+state tracks resource IDs and attributes; it is separate from the application's
+booking data in RDS and the React files in the frontend S3 bucket.
 
 Terraform requires a target account ID and enforces it through the AWS provider's
 `allowed_account_ids` setting. Region validation restricts this configuration to
@@ -119,7 +151,7 @@ Lambda runs in the private application subnets with the consumer role/group and
 existing NAT path. SES uses a domain identity, DKIM records in an existing public
 zone, suppression and configuration-set delivery metrics. Mapping activation
 requires verified SES/DKIM; database bootstrap and account/recipient checks remain
-operator prerequisites. See [Confirmation worker deployment](confirmation-worker.md).
+operator prerequisites. See [Confirmation processing](confirmation-worker.md).
 
 Hosted-zone ownership and registrar delegation are prerequisites for each
 deployment; the delivery root can own the hosted zone, while registrar settings

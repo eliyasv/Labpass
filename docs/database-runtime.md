@@ -1,5 +1,15 @@
 # Database runtime
 
+RDS stores both the user-facing application data and the background workers'
+coordination state. A booking writes inventory, the booking record, its retry key
+and an outbox event in one transaction. The relay reads that outbox; the consumer
+uses a separate delivery table to coordinate email attempts.
+
+Network access, IAM and SQL grants are separate controls. A workload needs a
+permitted security-group path, IAM access to its secret, and a PostgreSQL user
+with the required table privileges. RDS IAM database authentication is not used:
+the SDK retrieves password credentials from Secrets Manager.
+
 ## RDS configuration
 
 | Setting | Value |
