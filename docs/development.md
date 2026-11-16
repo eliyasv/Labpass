@@ -3,6 +3,26 @@
 Compose startup: [README](../README.md#run-locally).
 Run commands from the repository root unless a section changes directories.
 
+## Local components and AWS equivalents
+
+Compose runs the complete booking/email flow on one machine. Local service names
+refer to containers, not AWS services or separate EC2 instances.
+
+| Local service | AWS equivalent | Role in the flow |
+| --- | --- | --- |
+| `web` (Nginx) | CloudFront + S3, with ALB API routing | Serve the React build and forward `/api/*` to the API |
+| `api` | API containers on EC2 | Handle browser requests and commit bookings |
+| `db` | RDS PostgreSQL | Store application state, outbox events and delivery claims |
+| `relay` | Outbox relay on EC2 | Publish committed outbox events to the queue |
+| `queue` (ElasticMQ) | SQS and its DLQ | Provide a local SQS-compatible API and redrive behavior |
+| `consumer` | Lambda handler invoked through an SQS mapping | Claim deliveries and send email; locally a long-running Python process polls the queue |
+| `mailpit` | SES plus a test inbox | Capture SMTP messages locally without sending real email |
+| `migrate` | Bootstrap/migration operator job | Apply the database schema before services start |
+
+ElasticMQ and Mailpit are local dependencies only. Compose does not reproduce
+AWS IAM, Lambda invocation behavior, DNS, certificates or AZ placement. The
+[system architecture](architecture.md) describes the deployed AWS paths.
+
 ## Configuration
 
 `.env.example` provides local Compose settings. Keep `.env` outside Git and choose
@@ -226,7 +246,7 @@ Expected output: `DLQ check passed: poison message redriven after bounded receiv
 The check has an 80-second deadline and requires `LABPASS_DLQ_CHECK=true`.
 
 Cloud runtime configuration, permissions and the offline Lambda smoke:
-[AWS workers](aws-workers.md).
+[Confirmation processing](confirmation-worker.md).
 
 Cloud database configuration, role grants and controlled migrations are documented
 in [Database runtime](database-runtime.md).
@@ -245,4 +265,4 @@ pins and locks, install dependencies and run the affected checks:
 ```
 
 Alembic controls schema changes. Migration and data rollback limits are documented
-in the [architecture guide](architecture.md#authentication-transaction-and-migration-limits).
+in the [application mechanics](application-mechanics.md#authentication-transaction-and-migration-limits).

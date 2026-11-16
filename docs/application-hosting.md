@@ -1,5 +1,15 @@
 # Application hosting
 
+The application module runs two independent EC2 fleets: the API handles HTTP
+requests from the ALB, and the relay publishes database outbox events to SQS.
+Both use the backend image with different commands, IAM roles and database users.
+The frontend runs on S3/CloudFront; RDS hosts the database; Lambda consumes the queue.
+
+A **launch template** defines how to start an EC2 host: AMI, instance type, image
+digest, startup configuration, security group and instance profile. An **Auto
+Scaling group (ASG)** launches and replaces hosts using that template. Bootstrap
+and migration have templates but no ASGs; an operator launches those hosts explicitly.
+
 ## Configuration
 
 Hosting is disabled when `application = null`. Supply actual deployment values

@@ -64,30 +64,35 @@ flowchart TB
 
 </details>
 
-Route 53 resolves the domain to CloudFront. CloudFront serves the frontend from
-private S3 through Origin Access Control (OAC) and forwards API requests to the
-ALB. ACM provides certificates for the CloudFront viewer and ALB origin.
-The ALB accepts CloudFront origin addresses and validates a shared origin header;
-EC2 instances have no public IPs and accept API traffic only from the ALB.
+Route 53 resolves the domain to CloudFront. From there, the application has three
+main paths:
 
-The API commits each booking, inventory update and outbox event together. The
-relay publishes committed events to SQS, and Lambda reads the booking and records
-delivery claims before sending through SES. Queue retries and a DLQ isolate email
-failures from booking transactions. SES acceptance followed by a failed database
-update can still produce a duplicate email on retry.
+| Path | What happens |
+| --- | --- |
+| Load the website | CloudFront fetches the React build from private S3 using Origin Access Control (OAC); React runs in the browser |
+| Reserve a seat | Browser → CloudFront → Application Load Balancer (ALB) → private API instance → RDS PostgreSQL |
+| Send confirmation | EC2 relay reads a committed database event → SQS queue → Lambda consumer → SES → recipient inbox |
 
-Workloads use separate IAM roles and database credentials from Secrets Manager.
-RDS connections verify TLS certificates; database security groups admit only
-explicit workload groups. Systems Manager provides instance access without SSH.
-Private workloads use one NAT gateway for outbound access and an S3 gateway
-endpoint for S3 traffic. RDS is Single-AZ, and both application AZs share the NAT
-gateway; the API's two-AZ placement does not make every dependency redundant.
+The API commits the booking, seat count and an **outbox event**—a database record
+of work to publish—in one transaction. The relay publishes that event to SQS;
+Lambda loads booking data and coordinates delivery before sending email. Email
+failures leave the booking valid. Retries are bounded, with a dead-letter queue
+for repeatedly failing messages; an uncertain SES send can still produce duplicates.
 
-Terraform composes five modules for networking, database access, application
-hosting, frontend delivery and confirmations. The separate delivery root owns
-GitHub OIDC access, remote state, the migration document and the public DNS zone.
-See the [module interfaces](infra/modules/README.md) and
-[architecture guide](docs/architecture.md) for details.
+The API has two EC2 instances across Availability Zones. The frontend runs on
+S3/CloudFront, and the database is a separate managed RDS instance. RDS is Single-AZ;
+both application AZs also share one NAT gateway for outbound access. API instance
+replacement and rolling refreshes are configured; traffic-driven scaling is not.
+
+Separate IAM roles and database users limit each workload's access. RDS connections
+verify TLS certificates, and Systems Manager provides host access without SSH.
+CloudFront-to-ALB traffic uses HTTPS and a shared origin token; the ALB alone can
+reach the private API port.
+
+The [architecture guide](docs/architecture.md) explains each component, the booking
+sequence and IAM boundaries. [Module interfaces](infra/modules/README.md) describe
+Terraform ownership; [application mechanics](docs/application-mechanics.md) cover
+transaction, retry and authentication details.
 
 ## CI/CD
 
@@ -290,12 +295,14 @@ cancellation, confirmation email delivery and a protected GitHub Actions release
 
 | Guide | Scope |
 | --- | --- |
+| [Architecture and flows](docs/architecture.md) | Component roles, page loading, booking/email sequence, releases and access boundaries |
 | [Infrastructure](docs/infrastructure.md) | Subnet routing, availability, scaling limits and state ownership |
 | [Engineering decisions](docs/architecture.md#engineering-decisions-and-evidence) | Design rationale, supporting tests/deployment evidence and verification boundaries |
 | [CI/CD and release security](docs/delivery.md) | OIDC roles, security gates, approvals, plans, migrations and rollout |
 | [Application hosting](docs/application-hosting.md) | EC2 startup, health checks, refreshes, SSM and failure investigation |
 | [Terraform modules](infra/modules/README.md) | Resource ownership, interfaces and dependency boundaries |
 | [Verification](docs/verification.md) | Live AWS evidence, infrastructure/security checks and operational limits |
+| [Application mechanics](docs/application-mechanics.md) | Transaction boundaries, retries, delivery claims, authentication and failure handling |
 
 [All technical guides](docs/README.md) · [Terraform commands](infra/README.md) ·
 [Project status](docs/project-status.md)

@@ -7,26 +7,8 @@ The foundation composes local `network`, `database`, `application`, `frontend`
 and `confirmations` modules. Shared ECR and SQS resources remain in the root.
 [Module interfaces](modules/README.md).
 
-## Resources
-
-| Resource | Configuration |
-| --- | --- |
-| VPC | `10.42.0.0/16`, two availability zones |
-| Subnets | Two public, two private application, two isolated database |
-| Egress | One zonal NAT gateway; S3 gateway endpoint |
-| Default security group | Empty ingress and egress rules |
-| ECR | API/relay and Lambda repositories; immutable tags, AES256, scan-on-push, `force_delete=true` |
-| SQS | Standard, SQS-managed encryption, 360-second visibility, 4-day retention; redrive after 5 receives |
-| DLQ | Standard, SQS-managed encryption, 14-day retention; source queue restricted |
-| RDS | Private PostgreSQL 18.6, Single-AZ `db.t4g.micro`, encrypted 20 GiB gp3, seven-day backups |
-| Database access | PostgreSQL ingress from API/relay/consumer/migration/bootstrap groups |
-| Secrets | RDS-managed master password; four role-secret containers |
-| IAM | Component-specific secret reads, bootstrap secret writes, relay/consumer SQS scopes and EC2 profiles |
-| Optional hosting | HTTPS ALB; private API/relay ASGs; bootstrap/migration launch templates |
-| Host access/logging | SSM, ECR pulls and component CloudWatch log groups with seven-day retention |
-| Optional frontend delivery | Private versioned S3 with OAC, CloudFront, public/origin DNS records and separate DNS-validated ACM certificates |
-| Optional confirmation worker | Private Lambda image/version/alias, disabled-by-default SQS mapping, bounded concurrency and scoped SES/log/ENI/image access |
-| Email identity | SES domain, 2048-bit DKIM CNAMEs, default configuration set, suppression and CloudWatch delivery metrics |
+Resource layout, subnet routing and availability limits:
+[Infrastructure design](../docs/infrastructure.md).
 
 ## Requirements
 
@@ -69,7 +51,7 @@ Frontend integration provisions the origin certificate; omit
 `application.origin_certificate_arn` in that mode. Zone ownership/delegation,
 publication and origin-token handling: [Frontend delivery](../docs/frontend-delivery.md).
 Confirmation configuration and activation:
-[Confirmation worker deployment](../docs/confirmation-worker.md).
+[Confirmation processing](../docs/confirmation-worker.md).
 
 ## Outputs
 

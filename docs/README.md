@@ -1,5 +1,10 @@
 # Technical documentation
 
+Start with [Architecture and decisions](architecture.md) for the component map,
+page/API routing, booking-to-email flow, release sequence and IAM boundaries.
+Use [Application mechanics](application-mechanics.md) for the detailed transaction,
+retry and authentication rules.
+
 ## Infrastructure and operations
 
 | Order | Guide | Scope |
@@ -20,14 +25,13 @@ Design rationale and supporting checks:
 | [Terraform commands](../infra/README.md) | Provider versions, inputs/outputs, offline checks and backend configuration |
 | [Frontend delivery](frontend-delivery.md) | Private S3/OAC, CloudFront routing, DNS/TLS, origin restrictions and publication |
 | [Database runtime](database-runtime.md) | RDS, database privileges, Secrets Manager, bootstrap and migrations |
-| [Confirmation worker](confirmation-worker.md) | Lambda/SQS/SES activation, concurrency, IAM and delivery metrics |
+| [Confirmation processing](confirmation-worker.md) | Relay/Lambda runtime, SQS retry timing, SES activation, permissions and offline checks |
 
 ## Application and local development
 
 | Guide | Scope |
 | --- | --- |
-| [Architecture and decisions](architecture.md) | AWS request flow, application responsibilities, outbox processing, transactions and authentication |
-| [AWS worker runtime](aws-workers.md) | SDK/secret behaviour, delivery claims, partial failures and offline Lambda smoke |
+| [Application mechanics](application-mechanics.md) | Booking transactions, idempotency, delivery claims, authentication and failure recovery |
 | [Development](development.md) | Local setup, API requests, test commands, worker recovery and dependency updates |
 
 Implemented capabilities, completed deployment checks and remaining operational
